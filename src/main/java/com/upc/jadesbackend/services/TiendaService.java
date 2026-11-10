@@ -1,6 +1,7 @@
 package com.upc.jadesbackend.services;
 
 import com.upc.jadesbackend.dtos.RequestRegistrarTiendaDTO;
+import com.upc.jadesbackend.dtos.ResponseBajaTiendaDTO;
 import com.upc.jadesbackend.dtos.ResponseTiendaDTO;
 import com.upc.jadesbackend.dtos.ResponseTiendaResumenDTO;
 import com.upc.jadesbackend.entities.Auditoria;
