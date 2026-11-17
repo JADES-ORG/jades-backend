@@ -52,7 +52,7 @@ public class ClientePortalService {
     }
 
     // NOTITA: Podria evaluarse reestructurar este metodo para mejor legibilidad y que sea menos complejo
-    private ResponseCuentaCorrienteDTO construirCuenta(Cliente cliente) {
+    public ResponseCuentaCorrienteDTO construirCuenta(Cliente cliente) {
         Long idCliente = cliente.getId();
         List<Venta> listaVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaDesc(idCliente);
         List<Credito> listaCreditos = creditos.findAllByIdVenta_IdCliente_Id(idCliente);
