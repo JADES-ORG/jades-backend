@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface CuotaRepositorio extends JpaRepository<Cuota,Long> {
     List<Cuota> findAllByIdCredito_IdVenta_IdCliente_IdOrderByFechaVencimientoAsc(Long idCliente);
+
+    List<Cuota> findAllByIdCredito_IdOrderByNumeroCuotaAsc(Long idCredito);
 }
