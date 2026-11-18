@@ -15,7 +15,6 @@ import java.util.List;
 public class ProductoService {
     private final ProductoRepositorio repositorio;
     private final AccesoNegocioService acceso;
-    private final DetalleVentaRepositorio detalles;
     public ResponseProductoDTO registrar(Long tienda, RequestProductoDTO dto, UsuarioPrincipal usuario) {
         Producto e = new Producto();
         e.setIdTienda(acceso.exigir(tienda, usuario));
@@ -23,16 +22,21 @@ public class ProductoService {
         aplicar(tienda, e, dto);
         return ResponseProductoDTO.de(repositorio.save(e));
     }
-    public ResponseProductoDTO actualizar(Long tienda, Long id, RequestProductoDTO dto, UsuarioPrincipal usuario) {
+    public ResponseProductoDTO actualizar(
+            Long tienda,
+            Long id,
+            RequestProductoDTO dto,
+            UsuarioPrincipal usuario) {
+
         acceso.exigir(tienda, usuario);
-        Producto e = buscar(tienda, id);
-        // Preserve legacy rows before changing any catalog description.
-        detalles.findByIdProducto_IdAndNombreProductoVentaIsNull(id).forEach(d -> {
-            d.capturarCatalogo();
-            detalles.save(d);
-        });
-        aplicar(tienda, e, dto);
-        return ResponseProductoDTO.de(repositorio.save(e));
+
+        Producto producto = buscar(tienda, id);
+
+        aplicar(tienda, producto, dto);
+
+        return ResponseProductoDTO.de(
+                repositorio.save(producto)
+        );
     }
     public ResponseProductoDTO desactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
