@@ -1,0 +1,21 @@
+package com.upc.jadesbackend.services;
+import com.upc.jadesbackend.entities.Tienda;
+import com.upc.jadesbackend.exceptions.NegocioException;
+import com.upc.jadesbackend.repositories.*;
+import com.upc.jadesbackend.security.principal.UsuarioPrincipal;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
+@Service
+@RequiredArgsConstructor
+public class AccesoNegocioService {
+    private final UsuarioTiendaRepositorio vinculos;
+    private final TiendaRepositorio tiendas;
+    public Tienda exigir(Long idTienda, UsuarioPrincipal usuario) {
+        if (usuario == null || !usuario.isEnabled() || !"ADMIN_NEGOCIO".equals(usuario.getRol())
+                || !vinculos.tieneAccesoActivo(usuario.getId(), idTienda))
+            throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso activo a esta tienda");
+        return tiendas.findById(idTienda).orElseThrow(() ->
+                new NegocioException(HttpStatus.NOT_FOUND, "Tienda no encontrada"));
+    }
+}

@@ -37,4 +37,9 @@ public class ManejadorExcepciones {
         return ResponseEntity.status(estado).body(new ResponseErrorDTO(
                 OffsetDateTime.now(ZoneOffset.UTC), estado.value(), mensaje, errores));
     }
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ResponseErrorDTO> manejarJsonInvalido(Exception e) {
+        return construir(HttpStatus.BAD_REQUEST, "El cuerpo JSON está incompleto o contiene tipos inválidos", Map.of());
+    }
+
 }

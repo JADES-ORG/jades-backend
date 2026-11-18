@@ -71,5 +71,11 @@ public class Venta {
     @Column(name = "estado_venta", nullable = false, length = 10)
     private String estadoVenta;
 
-
+    @PrePersist
+    private void validarClienteActivo() {
+        if (idCliente == null
+                || !"ACTIVO".equals(idCliente.getEstadoCliente())
+                || !"ACTIVO".equals(idCliente.getIdTienda().getEstadoTienda())
+        ) throw new IllegalStateException("El cliente y su tienda deben estar activos para nuevas ventas");
+    }
 }
