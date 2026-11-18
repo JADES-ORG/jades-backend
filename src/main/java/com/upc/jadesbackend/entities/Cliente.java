@@ -10,7 +10,7 @@ import org.hibernate.annotations.ColumnDefault;
 @Getter
 @Setter
 @Entity
-@Table(name = "cliente")
+@Table(name = "cliente", uniqueConstraints = @UniqueConstraint(name = "uk_cliente_tienda_dni", columnNames = {"id_tienda", "dni_cliente"}))
 public class Cliente {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
