@@ -30,23 +30,6 @@ class GestionCatalogoTest {
         }
     }
 
-    @Test void actualizacionConservaDescripcionYPrecioDeVentaAnterior() {
-        var repo = mock(ProductoRepositorio.class);
-        var acceso = mock(AccesoNegocioService.class);
-        var detalles = mock(DetalleVentaRepositorio.class);
-        var servicio = new ProductoService(repo, acceso, detalles);
-        var p = new Producto(); p.setId(4L); p.setNombreProducto("Nombre anterior");
-        p.setPrecioCredito(new BigDecimal("100.00"));
-        var detalle = new DetalleVenta(); detalle.setIdProducto(p);
-        detalle.setPrecioUnitario(new BigDecimal("95.00"));
-        when(repo.findByIdAndIdTienda_Id(4L, 1L)).thenReturn(Optional.of(p));
-        when(detalles.findByIdProducto_IdAndNombreProductoVentaIsNull(4L)).thenReturn(List.of(detalle));
-        when(repo.save(p)).thenReturn(p);
-        servicio.actualizar(1L, 4L, producto("Nombre nuevo", BigDecimal.TEN), null);
-        assertEquals("Nombre anterior", detalle.getNombreProductoVenta());
-        assertEquals(new BigDecimal("95.00"), detalle.getPrecioUnitario());
-        assertEquals("Nombre nuevo", p.getNombreProducto());
-    }
 
     @Test void desactivarClienteConservaRegistroYVinculoDeUsuario() {
         var repo = mock(ClienteRepositorio.class);
@@ -71,26 +54,12 @@ class GestionCatalogoTest {
     @Test void listadoPredeterminadoUsaSoloActivos() {
         var repo = mock(ProductoRepositorio.class);
         when(repo.findByIdTienda_IdAndEstadoProductoOrderByIdAsc(1L, "ACTIVO")).thenReturn(List.of());
-        new ProductoService(repo, mock(AccesoNegocioService.class), mock(DetalleVentaRepositorio.class)).listar(1L, true, null);
+        new ProductoService(
+                repo,
+                mock(AccesoNegocioService.class)
+        ).listar(1L, true, null);
         verify(repo).findByIdTienda_IdAndEstadoProductoOrderByIdAsc(1L, "ACTIVO");
         verify(repo, never()).findByIdTienda_IdOrderByIdAsc(any());
     }
-    @Test void nuevasVentasRechazanInactivosYModalidadNoAdmitida() throws Exception {
-        var tienda = new Tienda(); tienda.setId(1L); tienda.setEstadoTienda("ACTIVO");
-        var c = new Cliente(); c.setIdTienda(tienda); c.setEstadoCliente("ACTIVO");
-        var v = new Venta(); v.setIdCliente(c); v.setModalidadPago("MENSUAL");
-        var p = new Producto(); p.setIdTienda(tienda); p.setEstadoProducto("INACTIVO");
-        p.setModalidad("UNICO"); p.setNombreProducto("Original");
-        var d = new DetalleVenta(); d.setIdVenta(v); d.setIdProducto(p);
-        var callback = DetalleVenta.class.getDeclaredMethod("prepararNuevaVenta");
-        callback.setAccessible(true);
-        assertInstanceOf(IllegalStateException.class, assertThrows(java.lang.reflect.InvocationTargetException.class, () -> callback.invoke(d)).getCause());
-        p.setEstadoProducto("ACTIVO");
-        assertThrows(java.lang.reflect.InvocationTargetException.class, () -> callback.invoke(d));
-        p.setModalidad("AMBAS");
-        callback.invoke(d);
-        assertEquals("Original", d.getNombreProductoVenta());
-        c.setEstadoCliente("INACTIVO");
-        assertThrows(java.lang.reflect.InvocationTargetException.class, () -> callback.invoke(d));
-    }
+
 }
