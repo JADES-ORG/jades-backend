@@ -71,5 +71,4 @@ public class Venta {
     @Column(name = "estado_venta", nullable = false, length = 10)
     private String estadoVenta;
 
-
 }
