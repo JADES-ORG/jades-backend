@@ -10,12 +10,15 @@ import org.hibernate.annotations.ColumnDefault;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "venta")
-public class Venta {
+// Adiciones del HU08 (Davidd K.)
+@Table(name = "venta", uniqueConstraints = @UniqueConstraint(
+        name = "uk_venta_clave_idempotencia", columnNames = "clave_idempotencia"))public class Venta {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_venta", nullable = false)
@@ -71,4 +74,20 @@ public class Venta {
     @Column(name = "estado_venta", nullable = false, length = 10)
     private String estadoVenta;
 
+    // Adición de la HU08 (David K.)
+    // Clave enviada por el frontend para que un reintento o doble clic no duplique la venta (Si es incecesario se eleminara).
+    @Size(max = 64)
+    @Column(name = "clave_idempotencia", length = 64)
+    private String claveIdempotencia;
+
+
+    // Adición de la HU08 (David K.)
+    @OneToMany(mappedBy = "idVenta", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DetalleVenta> detalles = new ArrayList<>();
+
+    // Evaluar posible movimiento de este metodo
+    public void agregarDetalle(DetalleVenta detalle) {
+        detalle.setIdVenta(this);
+        detalles.add(detalle);
+    }
 }
