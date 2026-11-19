@@ -1,0 +1,218 @@
+{
+  "info": {
+    "_postman_id": "7666-jades-finanzas-v1",
+    "name": "JADES - Finanzas (HU-12, HU-13, HU-14)",
+    "description": "Colección oficial para pruebas de las Historias de Usuario HU-12, HU-13 y HU-14 con Spring Boot y autenticación Bearer JWT.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Autenticación - Iniciar Sesión",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    var token = jsonData.tokenAcceso || jsonData.token;",
+              "    pm.collectionVariables.set('token', token);",
+              "    console.log('Token guardado automáticamente en {{token}}');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"correo\": \"admin@jades.com\",\n  \"contrasena\": \"admin\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/autenticacion/iniciar-sesion",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "autenticacion", "iniciar-sesion"]
+        },
+        "description": "Autentica al usuario y guarda automáticamente el JWT en la variable {{token}} para las demás peticiones."
+      }
+    },
+    {
+      "name": "1. HU-12 - Simular Cronograma (Caso 15-09-2026)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"monto\": 1200.00,\n  \"tipoTasa\": \"EFECTIVA\",\n  \"valorTasa\": 0.015,\n  \"periodoTasa\": \"MENSUAL\",\n  \"numeroCuotas\": 3,\n  \"fechaVenta\": \"2026-09-15\",\n  \"diaCorte\": 20,\n  \"diaPago\": 26,\n  \"moneda\": \"PEN\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cronogramas/simular",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cronogramas", "simular"]
+        },
+        "description": "Simula el cronograma del caso oficial: S/ 1,200.00 a 3 cuotas, 11 días de gracia capitalizada (S/ 1,206.57), cuotas S/ 414.32, 414.32, 414.31 y saldo final 0.00."
+      }
+    },
+    {
+      "name": "2. HU-12 - Generar Cronograma de Venta",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cronogramas/ventas/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cronogramas", "ventas", "1"]
+        },
+        "description": "Genera y guarda en BD el crédito y las cuotas de la venta ID 1 (idempotente)."
+      }
+    },
+    {
+      "name": "3. HU-12 - Consultar Cronograma de Venta",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/cronogramas/ventas/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "cronogramas", "ventas", "1"]
+        }
+      }
+    },
+    {
+      "name": "4. HU-14 - Calcular Mora de Cuota",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/mora/cuotas/1?fechaConsulta=2026-11-05",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "mora", "cuotas", "1"],
+          "query": [
+            {
+              "key": "fechaConsulta",
+              "value": "2026-11-05"
+            }
+          ]
+        },
+        "description": "Calcula el interés moratorio compuesto diario de la cuota 1 a una fecha dada."
+      }
+    },
+    {
+      "name": "5. HU-14 - Consultar Mora Total de Cliente",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/mora/clientes/1?fechaConsulta=2026-11-05",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "mora", "clientes", "1"],
+          "query": [
+            {
+              "key": "fechaConsulta",
+              "value": "2026-11-05"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. HU-13 - Listado de Pago al Corte (Cliente)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/corte/clientes/1?fechaConsulta=2026-09-20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "corte", "clientes", "1"],
+          "query": [
+            {
+              "key": "fechaConsulta",
+              "value": "2026-09-20"
+            }
+          ]
+        },
+        "description": "Genera el listado de pago al corte con regla de 18:00 h, compras del ciclo, cuotas y mora."
+      }
+    }
+  ]
+}
