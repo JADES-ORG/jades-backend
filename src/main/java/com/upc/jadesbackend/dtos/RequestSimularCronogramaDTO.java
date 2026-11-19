@@ -1,0 +1,24 @@
+package com.upc.jadesbackend.dtos;
+
+import jakarta.validation.constraints.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+/** Datos para simular un cronograma sin guardar nada (paso 3 del wizard de venta). */
+public record RequestSimularCronogramaDTO(
+        @NotNull @DecimalMin(value = "0.01", message = "debe ser mayor a cero") BigDecimal monto,
+        @NotBlank @Pattern(regexp = "(?i)NOMINAL|EFECTIVA", message = "debe ser NOMINAL o EFECTIVA") String tipoTasa,
+        @NotNull @DecimalMin(value = "0", message = "no puede ser negativa") BigDecimal valorTasa,
+        @NotBlank String periodoTasa,
+        String capitalizacionTasa,
+        @NotNull @Min(1) @Max(360) Integer numeroCuotas,
+        @NotNull LocalDate fechaVenta,
+        LocalTime horaVenta,
+        @NotNull @Min(1) @Max(31) Integer diaCorte,
+        LocalTime horaCorte,
+        @NotNull @Min(1) @Max(31) Integer diaPago,
+        @Min(0) Integer graciaAdicional,
+        @Pattern(regexp = "PEN|USD", message = "debe ser PEN o USD") String moneda
+) {}
