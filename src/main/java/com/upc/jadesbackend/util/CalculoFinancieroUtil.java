@@ -73,6 +73,15 @@ public final class CalculoFinancieroUtil {
             BigDecimal totalExigible) {
     }
 
+    public record ResultadoPagoUnico(
+            BigDecimal capital,
+            long diasFinanciamiento,
+            BigDecimal tasaEfectivaDiaria,
+            BigDecimal tasaEfectivaPeriodo,
+            BigDecimal interesCompensatorio,
+            BigDecimal totalPagar
+    ) {}
+
     // ------------------------------------------------------------------
     // Tasas
     // ------------------------------------------------------------------
@@ -285,4 +294,58 @@ public final class CalculoFinancieroUtil {
             throw new IllegalArgumentException("El " + nombre + " debe ser un valor no negativo");
         }
     }
+
+    /*
+     * HU-11: Cálculo de deuda de pago único.
+     * Permite calcular el interés compensatorio de una compra
+     * utilizando tasas nominales o efectivas y el período
+     * comprendido entre la compra y la fecha de pago.
+     */
+    public static ResultadoPagoUnico calcularPagoUnico(
+            BigDecimal capital,
+            LocalDate fechaVenta,
+            LocalDate fechaPago,
+            String tipoTasa,
+            BigDecimal valorTasa,
+            String periodoTasa,
+            String capitalizacionTasa) {
+
+        validarNoNegativo(capital, "capital");
+
+        if (fechaVenta == null || fechaPago == null
+                || fechaPago.isBefore(fechaVenta)) {
+            throw new IllegalArgumentException("Las fechas de la operación son inválidas");
+        }
+
+        long dias = ChronoUnit.DAYS.between(fechaVenta, fechaPago);
+
+        if (dias > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("El período de financiamiento es inválido");
+        }
+
+        BigDecimal ted = tasaEfectivaDiaria(
+                tipoTasa,
+                valorTasa,
+                periodoTasa,
+                capitalizacionTasa
+        );
+
+        BigDecimal tasaPeriodo = convertirTasaEfectiva(ted, 1, (int) dias);
+
+        BigDecimal capitalRedondeado = redondearMoneda(capital);
+
+        BigDecimal interes = redondearMoneda(
+                capitalRedondeado.multiply(tasaPeriodo, MC)
+        );
+
+        return new ResultadoPagoUnico(
+                capitalRedondeado,
+                dias,
+                ted,
+                tasaPeriodo,
+                interes,
+                capitalRedondeado.add(interes)
+        );
+    }
+
 }

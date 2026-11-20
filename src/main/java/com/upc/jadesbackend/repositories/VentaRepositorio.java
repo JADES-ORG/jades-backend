@@ -4,6 +4,8 @@ import com.upc.jadesbackend.entities.Venta;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -25,4 +27,9 @@ public interface VentaRepositorio extends JpaRepository<Venta,Long> {
             where v.idCliente.id = :idCliente and v.estadoVenta = 'VIGENTE'
             """)
     BigDecimal sumarCreditoUtilizadoPorCliente(@Param("idCliente") Long idCliente);
+
+    //HU11: Evita que dos solicitudes simultáneas generen dos obligaciones para una misma venta
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from Venta v where v.id = :idVenta")
+    Optional<Venta> bloquearPorId(@Param("idVenta") Long idVenta);
 }
