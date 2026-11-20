@@ -165,7 +165,20 @@ public class FacturacionCorteService {
             if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta())) {
                 continue;
             }
-            if (perteneceAlCiclo(v.getFechaVenta(), v.getHoraVenta(), corteAnterior, corteActual, horaCorte)) {
+
+            //permite que las ventas nuevas utilicen su ciclo guardado y que las antiguas,
+            // que todavía tienen fechas nulas, sigan funcionando con la lógica anterior.
+            boolean pertenece = v.getFechaCorteAsignada() != null
+                    ? YearMonth.from(v.getFechaCorteAsignada()).equals(ciclo)
+                    : perteneceAlCiclo(
+                    v.getFechaVenta(),
+                    v.getHoraVenta(),
+                    corteAnterior,
+                    corteActual,
+                    horaCorte
+            );
+
+            if (pertenece) {
                 Optional<Credito> credOpt = creditos.findByIdVenta_Id(v.getId());
                 Long idCredito = credOpt.map(Credito::getId).orElse(null);
                 String codigoCredito = credOpt.map(Credito::getCodigoCredito).orElse(null);

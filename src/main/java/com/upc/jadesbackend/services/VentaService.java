@@ -42,6 +42,7 @@ public class VentaService {
     private final UsuarioRepositorio usuarios;
     private final AccesoNegocioService acceso;
     private final EvaluacionCreditoService evaluacion;   // HU09
+    private final AsignacionCicloService asignacionCicloService;
 
     public ResponseVentaDTO registrar(Long tienda, RequestVentaDTO dto, UsuarioPrincipal usuario, String claveIdempotencia) {
         acceso.exigir(tienda, usuario);
@@ -88,7 +89,17 @@ public class VentaService {
         venta.setGraciaAdicional(dto.graciaAdicional() == null ? 0 : dto.graciaAdicional());
         venta.setMonedaVenta(condicion.getMonedaCredito());
         venta.setEstadoVenta("VIGENTE");
+        AsignacionCicloService.ResultadoCiclo resultado =
+                asignacionCicloService.asignar(
+                        venta.getFechaVenta(),
+                        venta.getHoraVenta(),
+                        venta.getModalidadPago(),
+                        venta.getGraciaAdicional(),
+                        condicion
+                );
 
+        venta.setFechaCorteAsignada(resultado.fechaCorte());
+        venta.setFechaPagoAsignada(resultado.fechaPago());
         venta.setClaveIdempotencia(clave);
 
         BigDecimal total = BigDecimal.ZERO;
