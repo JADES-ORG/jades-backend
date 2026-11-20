@@ -88,6 +88,15 @@ public class CronogramaService {
         Cliente cliente = venta.getIdCliente();
         validarAccesoAdmin(idUsuarioAdmin, cliente);
 
+        // Verifica que la venta corresponda a un financiamiento mensual.
+        // Las compras de pago único utilizan un cálculo financiero diferente.
+        if (!"MENSUAL".equals(venta.getModalidadPago())) {
+            throw new NegocioException(
+                    HttpStatus.BAD_REQUEST,
+                    "Esta operación no corresponde a una venta en cuotas mensuales"
+            );
+        }
+
         var existente = creditos.findByIdVenta_Id(idVenta);
         if (existente.isPresent()) {
             return new GeneracionCronograma(false, desdeEntidades(venta, existente.get()));
