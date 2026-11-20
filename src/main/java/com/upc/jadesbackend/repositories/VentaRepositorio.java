@@ -11,6 +11,7 @@ import java.util.Optional;
 
 public interface VentaRepositorio extends JpaRepository<Venta,Long> {
     List<Venta> findAllByIdCliente_IdOrderByFechaVentaDesc(Long idCliente);
+    List<Venta> findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(Long idCliente);
     // Adiciones de la HU-08 (David K.)
     Optional<Venta> findByIdAndIdCliente_IdTienda_Id(Long id, Long tienda);
     List<Venta> findAllByIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(Long tienda);
