@@ -5,6 +5,7 @@ import com.upc.jadesbackend.entities.Venta;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -15,6 +16,8 @@ public record ResponseVentaDTO(
         String nombreCliente,
         LocalDate fechaVenta,
         LocalTime horaVenta,
+        LocalDateTime fechaCorteAsignada,
+        LocalDate fechaPagoAsignada,
         String modalidadPago,
         Integer numeroCuotas,
         Integer graciaAdicional,
@@ -52,6 +55,8 @@ public record ResponseVentaDTO(
                 v.getIdCliente().getNombreCliente(),
                 v.getFechaVenta(),
                 v.getHoraVenta(),
+                v.getFechaCorteAsignada(),
+                v.getFechaPagoAsignada(),
                 v.getModalidadPago(),
                 v.getNumeroCuotas(),
                 v.getGraciaAdicional(),

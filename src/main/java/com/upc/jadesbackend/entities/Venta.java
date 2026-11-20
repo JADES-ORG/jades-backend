@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
+import java.time.LocalDateTime;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -62,6 +63,12 @@ import java.util.List;
     @ColumnDefault("LOCALTIME")
     @Column(name = "hora_venta", nullable = false)
     private LocalTime horaVenta;
+
+    @Column(name = "fecha_corte_asignada")
+    private LocalDateTime fechaCorteAsignada;
+
+    @Column(name = "fecha_pago_asignada")
+    private LocalDate fechaPagoAsignada;
 
     @NotNull
     @ColumnDefault("0")

@@ -128,7 +128,7 @@ public class CronogramaService {
                     montoVenta, condicion.getLimiteCredito(), deudaActual, disponible));
         }
 
-        TasaIntere tasa = tasasInteres.findByIdCondicion_Id(condicion.getId())
+        TasaInteres tasa = tasasInteres.findByIdCondicion_Id(condicion.getId())
                 .orElseThrow(() -> new NegocioException(HttpStatus.CONFLICT,
                         "El cliente no tiene una tasa de interés configurada"));
 
