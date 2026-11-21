@@ -13,7 +13,7 @@ public record ResponseCronogramaDTO(
         LocalDate fechaVenta,
         LocalDate fechaCorte,
         LocalDate fechaFinGracia,
-        long diasGracia,
+        Long diasGracia,
         BigDecimal tasaEfectivaMensual,
         BigDecimal tasaEfectivaDiaria,
         BigDecimal capitalVenta,

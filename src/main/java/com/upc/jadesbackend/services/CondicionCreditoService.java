@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Map;
 
@@ -37,6 +38,7 @@ public class CondicionCreditoService {
     private final TasaMoratoriaRepositorio tasasMoratorias;
     private final ClienteRepositorio clientes;
     private final AccesoNegocioService acceso;
+    private final EvaluacionCreditoService evaluacion;
 
     public ResponseCondicionCrediticiaDTO registrar(Long tienda, Long idCliente, RequestCondicionCrediticiaDTO dto, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
@@ -67,7 +69,13 @@ public class CondicionCreditoService {
         acceso.exigir(tienda, usuario);
         buscarCliente(tienda, idCliente);
         validarReglas(dto);
-        CondicionCredito c = buscarCondicion(idCliente);
+        CondicionCredito c = condiciones.bloquearPorCliente(idCliente).orElseThrow(() ->
+                new NegocioException(HttpStatus.NOT_FOUND, "Condiciones crediticias no encontradas"));
+        if (!dto.monedaCredito().equals(c.getMonedaCredito()))
+            throw new NegocioException(HttpStatus.CONFLICT, "La moneda del crédito no puede modificarse después de su configuración inicial");
+        var utilizado = evaluacion.creditoUtilizado(idCliente);
+        if (dto.limiteCredito().compareTo(utilizado) < 0)
+            throw new NegocioException(HttpStatus.CONFLICT, "El nuevo límite es inferior al crédito utilizado");
         TasaInteres ti = buscarTasaInteres(c);
         TasaMoratoria tm = buscarTasaMoratoria(c);
 
@@ -88,6 +96,8 @@ public class CondicionCreditoService {
     // HU-07 Reglas de negocio adicionales
 
     void validarReglas(RequestCondicionCrediticiaDTO dto) {
+        if (dto.tasaInteres().compareTo(BigDecimal.ONE) > 0 || dto.tasaMoratoria().compareTo(BigDecimal.ONE) > 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "Las tasas deben ser fracciones decimales: 18% = 0.18");
         if (dto.diaCorte().equals(dto.diaPago()))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El día de pago debe ser distinto al día de corte");
         validarTasa("compensatoria", dto.tipoTasa(), dto.periodoTasa(), dto.capitalizacionTasa());
