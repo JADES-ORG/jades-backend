@@ -70,6 +70,7 @@ public class PagoUnicoService {
 
         CalculoFinancieroUtil.ResultadoPagoUnico resultado;
         BigDecimal tedMora;
+        var moraPactada = tasasMora.findByIdCondicion_Id(condicion.getId());
 
         try {
             resultado = CalculoFinancieroUtil.calcularPagoUnico(
@@ -82,14 +83,14 @@ public class PagoUnicoService {
                     tasa.getCapitalizacionTasa()
             );
 
-            tedMora = tasasMora.findByIdCondicion_Id(condicion.getId())
+            tedMora = moraPactada
                     .map(m -> CalculoFinancieroUtil.tasaEfectivaDiaria(
                             m.getTipoTasaMora(),
                             m.getTasaMoratoria(),
                             m.getPeriodoTasaMora(),
                             m.getCapitalizacionMora()
                     ))
-                    .orElse(BigDecimal.ZERO);
+                    .orElseThrow(() -> new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria pactada"));
 
         } catch (IllegalArgumentException ex) {
             throw new NegocioException(HttpStatus.BAD_REQUEST, ex.getMessage());
@@ -97,6 +98,7 @@ public class PagoUnicoService {
 
         Credito credito = new Credito();
         credito.setIdVenta(venta);
+        credito.setCondicionesAplicadas(new CondicionesAplicadas(condicion, tasa, moraPactada.orElse(null), null, null));
         credito.setCodigoCredito(String.format("CR-%06d", venta.getId()));
         credito.setCapitalVenta(resultado.capital());
         credito.setCapitalCapitalizado(resultado.capital());
@@ -146,7 +148,7 @@ public class PagoUnicoService {
                         HttpStatus.NOT_FOUND, "Venta no encontrada");
             }
         } else {
-            acceso.exigir(venta.getIdCliente().getIdTienda().getId(), usuario);
+            acceso.exigirParaCobro(venta.getIdCliente().getIdTienda().getId(), usuario);
         }
 
         validarModalidad(venta);
@@ -206,7 +208,7 @@ public class PagoUnicoService {
                 credito.getFechaPrimerPago()
         );
 
-        BigDecimal tasaPeriodo = CalculoFinancieroUtil.convertirTasaEfectiva(
+        BigDecimal tasaPeriodo = credito.getTasaEfectivaDiariaAplicada() == null ? null : CalculoFinancieroUtil.convertirTasaEfectiva(
                 credito.getTasaEfectivaDiariaAplicada(),
                 1,
                 Math.toIntExact(dias)

@@ -62,7 +62,7 @@ public class PagoService {
 
         Venta venta = credito.getIdVenta();
 
-        acceso.exigir(
+        acceso.exigirParaCobro(
                 venta.getIdCliente().getIdTienda().getId(),
                 usuario
         );
@@ -108,7 +108,7 @@ public class PagoService {
         LocalDate hoy = LocalDate.now(ZONA_PERU);
 
         if (fechaPago.isAfter(hoy)
-                || fechaPago.isBefore(venta.getFechaVenta())) {
+                || fechaPago.isBefore(venta.getFechaVenta()) || fechaPago.isBefore(cuota.getFechaVencimiento())) {
             throw new NegocioException(
                     HttpStatus.BAD_REQUEST,
                     "La fecha efectiva del pago no es válida"

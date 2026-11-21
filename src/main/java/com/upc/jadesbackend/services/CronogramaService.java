@@ -83,7 +83,7 @@ public class CronogramaService {
 
     @Transactional
     public GeneracionCronograma generar(Long idVenta, Long idUsuarioAdmin) {
-        Venta venta = ventas.findById(idVenta)
+        Venta venta = ventas.bloquearPorId(idVenta)
                 .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
         Cliente cliente = venta.getIdCliente();
         validarAccesoAdmin(idUsuarioAdmin, cliente);
@@ -122,13 +122,10 @@ public class CronogramaService {
         }
 
         BigDecimal montoVenta = CalculoFinancieroUtil.redondearMoneda(venta.getTotalVenta());
-        BigDecimal deudaActual = creditos.findAllByIdVenta_IdCliente_Id(cliente.getId()).stream()
-                .filter(c -> !"CANCELADO".equalsIgnoreCase(c.getEstadoCredito()))
-                .map(Credito::getSaldoCredito)
-                .filter(java.util.Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal deudaProyectada = deudaActual.add(montoVenta);
+        // La venta ya forma parte del utilizado mientras no tenga crédito; no sumarla otra vez.
+        BigDecimal deudaProyectada = ventas.sumarCreditoUtilizadoPorCliente(cliente.getId());
+        if (deudaProyectada == null) deudaProyectada = BigDecimal.ZERO;
+        BigDecimal deudaActual = deudaProyectada.subtract(montoVenta).max(BigDecimal.ZERO);
         if (condicion.getLimiteCredito() != null && deudaProyectada.compareTo(condicion.getLimiteCredito()) > 0) {
             BigDecimal disponible = condicion.getLimiteCredito().subtract(deudaActual);
             if (disponible.signum() < 0) disponible = BigDecimal.ZERO;
@@ -152,10 +149,11 @@ public class CronogramaService {
 
         BigDecimal tem = tasaMensual(tasa.getTipoTasa(), tasa.getTasaInteres(), tasa.getPeriodoTasa(),
                 tasa.getCapitalizacionTasa());
-        BigDecimal tedMora = tasasMora.findByIdCondicion_Id(condicion.getId())
+        var moraPactada = tasasMora.findByIdCondicion_Id(condicion.getId());
+        BigDecimal tedMora = moraPactada
                 .map(m -> tasaDiaria(m.getTipoTasaMora(), m.getTasaMoratoria(), m.getPeriodoTasaMora(),
                         m.getCapitalizacionMora()))
-                .orElse(BigDecimal.ZERO);
+                .orElseThrow(() -> new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria pactada"));
 
         LocalTime horaCorte = condicion.getHoraCorte() == null ? HORA_CORTE_DEFECTO : condicion.getHoraCorte();
         Plan plan = construirPlan(venta.getTotalVenta(), tem, numeroCuotas, venta.getFechaVenta(),
@@ -165,6 +163,8 @@ public class CronogramaService {
         ResultadoCronograma r = plan.cronograma();
         Credito credito = new Credito();
         credito.setIdVenta(venta);
+        credito.setCondicionesAplicadas(new CondicionesAplicadas(condicion, tasa, moraPactada.orElse(null),
+                plan.fechaFinGracia(), plan.diasGracia()));
         credito.setCodigoCredito(String.format("CR-%06d", venta.getId()));
         credito.setCapitalVenta(CalculoFinancieroUtil.redondearMoneda(plan.capitalVenta()));
         credito.setCapitalCapitalizado(plan.capitalCapitalizado());
@@ -215,7 +215,8 @@ public class CronogramaService {
                 throw new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada");
             }
         } else {
-            validarAccesoAdmin(principal.getId(), cliente);
+            if (!accesos.tieneVinculoActivo(principal.getId(), cliente.getIdTienda().getId()))
+                throw new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada");
         }
 
         Credito credito = creditos.findByIdVenta_Id(idVenta)
@@ -232,7 +233,8 @@ public class CronogramaService {
         LocalTime corteHora = horaCorte == null ? HORA_CORTE_DEFECTO : horaCorte;
         LocalDate fechaCorte = CalendarioCreditoUtil.fechaCorte(fechaVenta, horaVenta, diaCorte, corteHora);
         LocalDate finGracia = CalendarioCreditoUtil.fechaFinGracia(fechaCorte, diaCorte, diaPago, graciaAdicional);
-        long diasGracia = ChronoUnit.DAYS.between(fechaVenta, finGracia);
+        LocalDate primerDiaPago = CalendarioCreditoUtil.fechaFinGracia(fechaCorte, diaCorte, diaPago, 0);
+        long diasGracia = ChronoUnit.DAYS.between(fechaVenta, primerDiaPago) + 30L * graciaAdicional;
 
         BigDecimal capitalCapitalizado = CalculoFinancieroUtil.capitalizarGracia(monto, tem, diasGracia);
         ResultadoCronograma cronograma = CalculoFinancieroUtil.generarCronograma(capitalCapitalizado, tem, numeroCuotas, null);
@@ -264,9 +266,11 @@ public class CronogramaService {
                         c.getSaldoFinal(), c.getEstadoCuota()))
                 .toList();
 
-        LocalDate finGracia = credito.getFechaPrimerPago().minusMonths(1);
+        CondicionesAplicadas pactadas = credito.getCondicionesAplicadas();
+        LocalDate finGracia = pactadas == null ? null : pactadas.getFinGracia();
+        Long diasGracia = pactadas == null ? null : pactadas.getDiasGracia();
         BigDecimal ted = credito.getTasaEfectivaDiariaAplicada();
-        BigDecimal tem = CalculoFinancieroUtil.convertirTasaEfectiva(ted, 1, CalculoFinancieroUtil.BASE_MENSUAL);
+        BigDecimal tem = ted == null ? null : CalculoFinancieroUtil.convertirTasaEfectiva(ted, 1, CalculoFinancieroUtil.BASE_MENSUAL);
         BigDecimal ajuste = lista.isEmpty() || credito.getCuotaMensual() == null
                 ? BigDecimal.ZERO
                 : lista.get(lista.size() - 1).getImporte().subtract(credito.getCuotaMensual());
@@ -274,7 +278,7 @@ public class CronogramaService {
         return new ResponseCronogramaDTO(credito.getId(), credito.getCodigoCredito(), venta.getId(),
                 venta.getMonedaVenta(), venta.getFechaVenta(),
                 LocalDate.ofInstant(credito.getFechaCorte(), ZONA_PERU), finGracia,
-                ChronoUnit.DAYS.between(venta.getFechaVenta(), finGracia), tem, ted, credito.getCapitalVenta(),
+                diasGracia, tem, ted, credito.getCapitalVenta(),
                 credito.getCapitalCapitalizado().subtract(credito.getCapitalVenta()), credito.getCapitalCapitalizado(),
                 filas.size(), credito.getCuotaMensual(), ajuste, credito.getInteresesTotales(),
                 credito.getTotalFinanciamiento(), filas);

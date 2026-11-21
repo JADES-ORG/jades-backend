@@ -98,7 +98,7 @@ public class FacturacionCorteService {
             LocalDate fechaEvaluacion,
             Long idUsuarioAdmin) {
 
-        if (!accesos.tieneAccesoActivo(idUsuarioAdmin, idTienda)) {
+        if (!accesos.tieneVinculoActivo(idUsuarioAdmin, idTienda)) {
             throw new NegocioException(HttpStatus.NOT_FOUND, "Tienda no autorizada para el usuario administrador");
         }
 
@@ -109,7 +109,7 @@ public class FacturacionCorteService {
         List<ResponseListadoCorteDTO> resultado = new ArrayList<>();
 
         for (Cliente c : listaClientes) {
-            if ("ACTIVO".equalsIgnoreCase(c.getEstadoCliente()) && condiciones.findByIdCliente_Id(c.getId()).isPresent()) {
+            if (condiciones.findByIdCliente_Id(c.getId()).isPresent()) {
                 resultado.add(construirListadoCorte(c, cicloFacturacion, fechaRef));
             }
         }
@@ -149,17 +149,19 @@ public class FacturacionCorteService {
         int diaPago = condicion.getDiaPago();
         LocalTime horaCorte = condicion.getHoraCorte() != null ? condicion.getHoraCorte() : HORA_CORTE_DEFECTO;
 
+        List<Venta> todasVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(cliente.getId());
+        String moneda = null;
         LocalDate corteActual = CalendarioCreditoUtil.fechaEnMes(ciclo, diaCorte);
         LocalDate corteAnterior = CalendarioCreditoUtil.fechaEnMes(ciclo.minusMonths(1), diaCorte);
         LocalDate fechaLimitePago = CalendarioCreditoUtil.fechaFinGracia(corteActual, diaCorte, diaPago, 0);
 
-        String moneda = condicion.getMonedaCredito() != null ? condicion.getMonedaCredito() : "PEN";
         String nombreTienda = cliente.getIdTienda() != null ? cliente.getIdTienda().getNombreTienda() : "Tienda";
 
         // 1. Compras ordenadas cronológicamente
-        List<Venta> todasVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(cliente.getId());
         List<CompraCiclo> comprasCiclo = new ArrayList<>();
         BigDecimal totalCompras = BigDecimal.ZERO;
+        Set<LocalDate> fechasCorteHistoricas = new HashSet<>();
+        Set<LocalTime> horasCorteHistoricas = new HashSet<>();
 
         for (Venta v : todasVentas) {
             if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta())) {
@@ -179,10 +181,19 @@ public class FacturacionCorteService {
             );
 
             if (pertenece) {
+                if (moneda == null) moneda = v.getMonedaVenta();
+                validarMoneda(moneda, v);
+                if (v.getFechaCorteAsignada() != null) {
+                    fechasCorteHistoricas.add(v.getFechaCorteAsignada().toLocalDate());
+                    horasCorteHistoricas.add(v.getFechaCorteAsignada().toLocalTime());
+                }
                 Optional<Credito> credOpt = creditos.findByIdVenta_Id(v.getId());
                 Long idCredito = credOpt.map(Credito::getId).orElse(null);
                 String codigoCredito = credOpt.map(Credito::getCodigoCredito).orElse(null);
-                BigDecimal interesEstimado = credOpt.map(Credito::getInteresesTotales).orElse(BigDecimal.ZERO);
+                BigDecimal interesEstimado = credOpt.map(c ->
+                        c.getTotalFinanciamiento() != null && c.getCapitalVenta() != null
+                                ? c.getTotalFinanciamiento().subtract(c.getCapitalVenta())
+                                : c.getInteresesTotales()).orElse(BigDecimal.ZERO);
 
                 comprasCiclo.add(new CompraCiclo(
                         v.getId(),
@@ -205,7 +216,8 @@ public class FacturacionCorteService {
 
         Set<Long> cuotasPagadasIds = new HashSet<>();
         for (Pago p : todosPagos) {
-            if (p.getIdCuota() != null) {
+            if (p.getIdCuota() != null && p.getFechaPagoEfectivo() != null
+                    && !p.getFechaPagoEfectivo().isAfter(fechaRef)) {
                 cuotasPagadasIds.add(p.getIdCuota().getId());
             }
         }
@@ -216,6 +228,7 @@ public class FacturacionCorteService {
         BigDecimal totalMora = BigDecimal.ZERO;
         BigDecimal totalExigible = BigDecimal.ZERO;
         int cuotasEnMoraCount = 0;
+        Set<LocalDate> vencimientosDelCiclo = new HashSet<>();
 
         for (Cuota c : todasCuotas) {
             if (cuotasPagadasIds.contains(c.getId())) {
@@ -224,10 +237,13 @@ public class FacturacionCorteService {
 
             LocalDate venc = c.getFechaVencimiento();
             // Una cuota es exigible en este corte si vence en la fecha límite de pago o si ya estaba vencida
-            if (venc.isEqual(fechaLimitePago) || venc.isBefore(fechaLimitePago)) {
+            if (esExigibleEnCiclo(c, ciclo)) {
+                if (!esExigibleEnCiclo(c, ciclo.minusMonths(1))) vencimientosDelCiclo.add(venc);
                 Credito cred = c.getIdCredito();
                 Venta v = cred.getIdVenta();
 
+                if (moneda == null) moneda = v.getMonedaVenta();
+                validarMoneda(moneda, v);
                 ResponseCalculoMoraDTO moraDto = moraService.construirDetalleMora(c, cred, v, fechaRef);
 
                 obligaciones.add(new ObligacionExigible(
@@ -269,6 +285,17 @@ public class FacturacionCorteService {
                 cuotasEnMoraCount
         );
 
+        if (fechasCorteHistoricas.size() == 1) {
+            corteActual = fechasCorteHistoricas.iterator().next();
+            corteAnterior = null; // Sin pacto histórico completo no es seguro reconstruir el corte anterior.
+            if (horasCorteHistoricas.size() == 1) horaCorte = horasCorteHistoricas.iterator().next();
+        } else if (fechasCorteHistoricas.size() > 1) {
+            corteActual = null;
+            corteAnterior = null;
+            horaCorte = null; // No existe una cabecera única para calendarios históricos diferentes.
+        }
+        if (moneda == null) moneda = condicion.getMonedaCredito() == null ? "PEN" : condicion.getMonedaCredito();
+
         return new ResponseListadoCorteDTO(
                 cliente.getId(),
                 cliente.getNombreCliente(),
@@ -279,12 +306,38 @@ public class FacturacionCorteService {
                 corteAnterior,
                 corteActual,
                 horaCorte,
-                fechaLimitePago,
+                vencimientosDelCiclo.size() > 1 ? null : vencimientosDelCiclo.stream().findFirst().orElse(fechaLimitePago),
                 moneda,
                 resumen,
                 comprasCiclo,
                 obligaciones
         );
+    }
+
+    boolean esExigibleEnCiclo(Cuota cuota, YearMonth ciclo) {
+        Credito credito = cuota.getIdCredito();
+        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
+        YearMonth mesVencimiento = YearMonth.from(cuota.getFechaVencimiento());
+        if (pacto != null && pacto.getDiaPago() != null && pacto.getDiaCorte() != null) {
+            YearMonth mesCorte = pacto.getDiaPago() <= pacto.getDiaCorte()
+                    ? mesVencimiento.minusMonths(1) : mesVencimiento;
+            return !mesCorte.isAfter(ciclo);
+        }
+        if (mesVencimiento.compareTo(ciclo) <= 0) return true;
+        if (mesVencimiento.isAfter(ciclo.plusMonths(1))) return false;
+        Venta venta = credito.getIdVenta();
+        if (credito.getFechaCorte() == null || credito.getFechaPrimerPago() == null)
+            throw new NegocioException(HttpStatus.CONFLICT, "Falta el calendario histórico de la cuota " + cuota.getId());
+        int meses = "MENSUAL".equals(venta.getModalidadPago())
+                ? 1 + Objects.requireNonNullElse(venta.getGraciaAdicional(), 0) : 0;
+        YearMonth corteOriginal = YearMonth.from(credito.getFechaCorte().atZone(ZONA_PERU));
+        YearMonth pagoOriginal = YearMonth.from(credito.getFechaPrimerPago()).minusMonths(meses);
+        return pagoOriginal.equals(corteOriginal.plusMonths(1));
+    }
+
+    private void validarMoneda(String moneda, Venta venta) {
+        if (venta.getMonedaVenta() != null && moneda != null && !moneda.equals(venta.getMonedaVenta()))
+            throw new NegocioException(HttpStatus.CONFLICT, "El ciclo contiene obligaciones en monedas distintas");
     }
 
     /**
@@ -319,7 +372,7 @@ public class FacturacionCorteService {
                 throw new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado");
             }
         } else {
-            if (!accesos.tieneAccesoActivo(principal.getId(), cliente.getIdTienda().getId())) {
+            if (!accesos.tieneVinculoActivo(principal.getId(), cliente.getIdTienda().getId())) {
                 throw new NegocioException(HttpStatus.NOT_FOUND, "Cliente no autorizado en las tiendas asignadas");
             }
         }
