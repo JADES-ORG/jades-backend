@@ -11,6 +11,11 @@ import lombok.RequiredArgsConstructor;
 public class AccesoNegocioService {
     private final UsuarioTiendaRepositorio vinculos;
     private final TiendaRepositorio tiendas;
+    public void exigirParaCobro(Long idTienda, UsuarioPrincipal usuario) {
+        if (usuario == null || !usuario.isEnabled() || !"ADMIN_NEGOCIO".equals(usuario.getRol())
+                || !vinculos.tieneVinculoActivo(usuario.getId(), idTienda))
+            throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso para cobrar en esta tienda");
+    }
     public Tienda exigir(Long idTienda, UsuarioPrincipal usuario) {
         if (usuario == null || !usuario.isEnabled() || !"ADMIN_NEGOCIO".equals(usuario.getRol())
                 || !vinculos.tieneAccesoActivo(usuario.getId(), idTienda))

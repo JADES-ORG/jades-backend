@@ -23,6 +23,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Objects;
+import java.util.Map;
+import java.util.HashMap;
 
 
 @Service
@@ -180,9 +183,28 @@ public class VentaService {
 
     private ResponseVentaDTO repetirRespuesta(Venta previa, Long tienda, RequestVentaDTO dto) {
         boolean mismaOperacion = previa.getIdCliente().getIdTienda().getId().equals(tienda)
-                && previa.getIdCliente().getId().equals(dto.idCliente());
+                && previa.getIdCliente().getId().equals(dto.idCliente())
+                && Objects.equals(previa.getModalidadPago(), dto.modalidadPago())
+                && Objects.equals(previa.getNumeroCuotas(), dto.numeroCuotas())
+                && Objects.equals(previa.getGraciaAdicional(), dto.graciaAdicional() == null ? 0 : dto.graciaAdicional())
+                && mismosDetalles(previa, dto);
         if (!mismaOperacion)
             throw new NegocioException(HttpStatus.CONFLICT, "La Idempotency-Key ya se usó para otra venta");
         return ResponseVentaDTO.de(previa);
+    }
+
+    private boolean mismosDetalles(Venta venta, RequestVentaDTO dto) {
+        if (venta.getDetalles().size() != dto.detalles().size()) return false;
+        Map<Long, BigDecimal> cantidades = new HashMap<>();
+        for (DetalleVenta detalle : venta.getDetalles()) {
+            if (cantidades.put(detalle.getIdProducto().getId(), detalle.getCantidad()) != null) return false;
+        }
+        Set<Long> vistos = new HashSet<>();
+        for (RequestVentaDTO.Detalle detalle : dto.detalles()) {
+            BigDecimal cantidad = cantidades.get(detalle.idProducto());
+            if (!vistos.add(detalle.idProducto()) || cantidad == null || detalle.cantidad() == null
+                    || cantidad.compareTo(detalle.cantidad()) != 0) return false;
+        }
+        return true;
     }
 }

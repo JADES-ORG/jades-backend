@@ -62,7 +62,7 @@ public class PagoService {
 
         Venta venta = credito.getIdVenta();
 
-        acceso.exigir(
+        acceso.exigirParaCobro(
                 venta.getIdCliente().getIdTienda().getId(),
                 usuario
         );

@@ -35,6 +35,14 @@ class MoraServiceTest {
 
     private MoraService servicio;
 
+    @Test
+    void tasaHistoricaCeroNoUsaCondicionesActuales() {
+        Credito credito = new Credito();
+        credito.setTasaMoraDiariaAplicada(BigDecimal.ZERO);
+        assertEquals(0, servicio.obtenerTasaMoraDiaria(credito, new Cliente()).signum());
+        verifyNoInteractions(condiciones, tasasMora);
+    }
+
     @BeforeEach
     void setUp() {
         servicio = new MoraService(cuotas, pagos, clientes, tasasMora, condiciones, accesos);

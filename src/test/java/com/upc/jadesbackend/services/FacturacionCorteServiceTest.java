@@ -124,6 +124,8 @@ class FacturacionCorteServiceTest {
         cred.setCodigoCredito("CR-000101");
         cred.setIdVenta(v1);
         cred.setInteresesTotales(new BigDecimal("36.38"));
+        cred.setCapitalVenta(new BigDecimal("1200.00"));
+        cred.setTotalFinanciamiento(new BigDecimal("1242.95"));
 
         when(creditos.findByIdVenta_Id(101L)).thenReturn(Optional.of(cred));
 
@@ -169,7 +171,7 @@ class FacturacionCorteServiceTest {
         assertEquals(1, corte1.compras().size());
         assertEquals(101L, corte1.compras().get(0).idVenta());
         igual("1200.00", corte1.compras().get(0).totalVenta());
-        igual("36.38", corte1.compras().get(0).interesEstimado());
+        igual("42.95", corte1.compras().get(0).interesEstimado());
 
         // Obligaciones exigibles y totales
         assertEquals(1, corte1.obligaciones().size());

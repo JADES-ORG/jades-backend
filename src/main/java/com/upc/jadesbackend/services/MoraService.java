@@ -204,7 +204,7 @@ public class MoraService {
     }
 
     BigDecimal obtenerTasaMoraDiaria(Credito credito, Cliente cliente) {
-        if (credito.getTasaMoraDiariaAplicada() != null && credito.getTasaMoraDiariaAplicada().signum() > 0) {
+        if (credito.getTasaMoraDiariaAplicada() != null) {
             return credito.getTasaMoraDiariaAplicada();
         }
         return condiciones.findByIdCliente_Id(cliente.getId())

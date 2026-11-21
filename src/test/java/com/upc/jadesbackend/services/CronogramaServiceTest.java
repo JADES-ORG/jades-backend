@@ -3,17 +3,50 @@ package com.upc.jadesbackend.services;
 import com.upc.jadesbackend.dtos.RequestSimularCronogramaDTO;
 import com.upc.jadesbackend.dtos.ResponseCronogramaDTO;
 import com.upc.jadesbackend.exceptions.NegocioException;
+import com.upc.jadesbackend.entities.*;
+import com.upc.jadesbackend.repositories.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
+import static org.mockito.Mockito.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /** La simulación no usa repositorios, por eso el servicio se crea sin dependencias. */
 class CronogramaServiceTest {
+
+    @Test
+    void creditoExistenteSeConsultaBajoBloqueoSinCrearOtro() {
+        var ventas = mock(VentaRepositorio.class); var creditos = mock(CreditoRepositorio.class);
+        var cuotas = mock(CuotaRepositorio.class); var accesos = mock(UsuarioTiendaRepositorio.class);
+        var servicio = new CronogramaService(ventas, creditos, cuotas, mock(CondicionCreditoRepositorio.class),
+                mock(TasaInteresRepositorio.class), mock(TasaMoratoriaRepositorio.class), accesos);
+        Tienda tienda = new Tienda(); tienda.setId(1L);
+        Cliente cliente = new Cliente(); cliente.setIdTienda(tienda);
+        Venta venta = new Venta(); venta.setId(2L); venta.setIdCliente(cliente); venta.setModalidadPago("MENSUAL");
+        venta.setFechaVenta(LocalDate.of(2026, 1, 1));
+        Credito credito = new Credito(); credito.setId(3L); credito.setIdVenta(venta);
+        credito.setFechaPrimerPago(LocalDate.of(2026, 3, 10));
+        credito.setFechaCorte(LocalDate.of(2026, 1, 20).atStartOfDay(ZoneId.of("America/Lima")).toInstant());
+        credito.setTasaEfectivaDiariaAplicada(BigDecimal.ZERO);
+        credito.setCapitalVenta(new BigDecimal("100")); credito.setCapitalCapitalizado(new BigDecimal("100"));
+        when(ventas.bloquearPorId(2L)).thenReturn(Optional.of(venta));
+        when(accesos.tieneAccesoActivo(4L, 1L)).thenReturn(true);
+        when(creditos.findByIdVenta_Id(2L)).thenReturn(Optional.of(credito));
+        when(cuotas.findAllByIdCredito_IdOrderByNumeroCuotaAsc(3L)).thenReturn(List.of());
+        assertFalse(servicio.generar(2L, 4L).creado());
+        var orden = inOrder(ventas, creditos);
+        orden.verify(ventas).bloquearPorId(2L);
+        orden.verify(creditos).findByIdVenta_Id(2L);
+        verify(creditos, never()).save(any());
+        verify(cuotas, never()).saveAll(any());
+    }
 
     private final CronogramaService servicio = new CronogramaService(null, null, null, null, null, null, null);
 

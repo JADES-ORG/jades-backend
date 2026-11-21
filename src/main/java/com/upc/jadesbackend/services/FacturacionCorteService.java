@@ -182,7 +182,10 @@ public class FacturacionCorteService {
                 Optional<Credito> credOpt = creditos.findByIdVenta_Id(v.getId());
                 Long idCredito = credOpt.map(Credito::getId).orElse(null);
                 String codigoCredito = credOpt.map(Credito::getCodigoCredito).orElse(null);
-                BigDecimal interesEstimado = credOpt.map(Credito::getInteresesTotales).orElse(BigDecimal.ZERO);
+                BigDecimal interesEstimado = credOpt.map(c ->
+                        c.getTotalFinanciamiento() != null && c.getCapitalVenta() != null
+                                ? c.getTotalFinanciamiento().subtract(c.getCapitalVenta())
+                                : c.getInteresesTotales()).orElse(BigDecimal.ZERO);
 
                 comprasCiclo.add(new CompraCiclo(
                         v.getId(),

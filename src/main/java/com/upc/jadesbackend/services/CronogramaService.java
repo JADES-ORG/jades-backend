@@ -83,7 +83,7 @@ public class CronogramaService {
 
     @Transactional
     public GeneracionCronograma generar(Long idVenta, Long idUsuarioAdmin) {
-        Venta venta = ventas.findById(idVenta)
+        Venta venta = ventas.bloquearPorId(idVenta)
                 .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada"));
         Cliente cliente = venta.getIdCliente();
         validarAccesoAdmin(idUsuarioAdmin, cliente);
@@ -122,13 +122,10 @@ public class CronogramaService {
         }
 
         BigDecimal montoVenta = CalculoFinancieroUtil.redondearMoneda(venta.getTotalVenta());
-        BigDecimal deudaActual = creditos.findAllByIdVenta_IdCliente_Id(cliente.getId()).stream()
-                .filter(c -> !"CANCELADO".equalsIgnoreCase(c.getEstadoCredito()))
-                .map(Credito::getSaldoCredito)
-                .filter(java.util.Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal deudaProyectada = deudaActual.add(montoVenta);
+        // La venta ya forma parte del utilizado mientras no tenga crédito; no sumarla otra vez.
+        BigDecimal deudaProyectada = ventas.sumarCreditoUtilizadoPorCliente(cliente.getId());
+        if (deudaProyectada == null) deudaProyectada = BigDecimal.ZERO;
+        BigDecimal deudaActual = deudaProyectada.subtract(montoVenta).max(BigDecimal.ZERO);
         if (condicion.getLimiteCredito() != null && deudaProyectada.compareTo(condicion.getLimiteCredito()) > 0) {
             BigDecimal disponible = condicion.getLimiteCredito().subtract(deudaActual);
             if (disponible.signum() < 0) disponible = BigDecimal.ZERO;
