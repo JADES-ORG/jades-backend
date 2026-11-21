@@ -50,7 +50,9 @@ Si no tienes PostgreSQL, puedes levantarlo con Docker:
 docker run --name jades-postgres -e POSTGRES_DB=bd_JADES -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
 ```
 
-### 2. Variables de entorno (opcionales)
+Hibernate valida el esquema existente. Para incorporar las condiciones históricas, el repositorio incluye `docs/credito_condiciones_aplicadas.sql`. Es una ampliación manual del esquema que deja vacíos los campos de créditos anteriores. El backend no ejecuta el script ni carga datos al iniciar.
+
+### 2. Variables de entorno
 Configura `DB_PASSWORD` y `JWT_SECRET` mediante variables de entorno también en desarrollo. El secreto JWT debe tener al menos 32 bytes y ser exclusivo de cada entorno. Las demás variables tienen los siguientes valores predeterminados:
 
 | Variable | Valor por defecto |
@@ -60,7 +62,6 @@ Configura `DB_PASSWORD` y `JWT_SECRET` mediante variables de entorno también en
 | `DB_PASSWORD` | obligatorio |
 | `JWT_SECRET` | obligatorio |
 | `JWT_EXPIRATION_MS` | `1200000` (20 min) |
-| `DDL_AUTO` | `update` |
 
 Ejemplo en PowerShell si tu PostgreSQL usa otro puerto o contraseña:
 ```powershell
