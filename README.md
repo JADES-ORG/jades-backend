@@ -39,6 +39,12 @@ Documentación adicional:
 
 ---
 
+## Convenciones de datos
+
+Las tasas se reciben como **fracciones decimales**: una tasa del 18 % se envía como `0.18`, no como `18`. El frontend debe dividir entre 100 si muestra porcentajes. Las tasas históricas guardadas como números mayores que `1` requieren revisión y migración supervisada; no se reinterpretan automáticamente.
+
+La moneda `PEN` o `USD` se configura una sola vez para cada cliente. En la edición de condiciones debe mostrarse como solo lectura; el backend rechaza el cambio.
+
 ## Cómo correrlo en local
 
 ### 1. Requisitos
@@ -50,22 +56,24 @@ Si no tienes PostgreSQL, puedes levantarlo con Docker:
 docker run --name jades-postgres -e POSTGRES_DB=bd_JADES -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
 ```
 
-### 2. Variables de entorno (opcionales)
-Todas tienen un valor por defecto para desarrollo local:
+Hibernate valida el esquema existente. Para incorporar las condiciones históricas, el repositorio incluye `docs/credito_condiciones_aplicadas.sql`. Es una ampliación manual del esquema que deja vacíos los campos de créditos anteriores. El backend no ejecuta el script ni carga datos al iniciar.
+
+### 2. Variables de entorno
+Configura `DB_PASSWORD` y `JWT_SECRET` mediante variables de entorno también en desarrollo. El secreto JWT debe tener al menos 32 bytes y ser exclusivo de cada entorno. Las demás variables tienen los siguientes valores predeterminados:
 
 | Variable | Valor por defecto |
 | :--- | :--- |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/bd_JADES` |
 | `DB_USER` | `postgres` |
-| `DB_PASSWORD` | `postgres` |
-| `JWT_SECRET` | clave de desarrollo (cámbiala en producción) |
+| `DB_PASSWORD` | obligatorio |
+| `JWT_SECRET` | obligatorio |
 | `JWT_EXPIRATION_MS` | `1200000` (20 min) |
-| `DDL_AUTO` | `update` |
 
 Ejemplo en PowerShell si tu PostgreSQL usa otro puerto o contraseña:
 ```powershell
 $env:DB_URL = "jdbc:postgresql://localhost:5433/bd_JADES"
 $env:DB_PASSWORD = "mi_clave"
+$env:JWT_SECRET = "una-clave-local-unica-de-al-menos-32-bytes"
 ```
 
 ### 3. Arrancar

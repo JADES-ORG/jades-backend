@@ -17,7 +17,7 @@ import java.util.List;
 public class ClienteController {
     private final ClienteService servicio;
     @PostMapping
-    public ResponseEntity<ResponseClienteDTO> registrar(@PathVariable Long tienda, @Valid @RequestBody RequestClienteDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) {
+    public ResponseEntity<ResponseClienteDTO> registrar(@PathVariable Long tienda, @Valid @RequestBody RequestAltaClienteDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) {
         var resultado = servicio.registrar(tienda, dto, usuario);
         return ResponseEntity.created(URI.create("/api/v1/tiendas/" + tienda + "/clientes/" + resultado.id())).body(resultado);
     }

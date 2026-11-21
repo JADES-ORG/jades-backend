@@ -35,9 +35,7 @@ public class CronogramaController {
     @PreAuthorize("hasRole('ADMIN_NEGOCIO')")
     public ResponseEntity<ResponseCronogramaDTO> generar(@PathVariable Long idVenta,
                                                          @AuthenticationPrincipal UsuarioPrincipal principal) {
-        GeneracionCronograma resultado = servicio.generar(idVenta, principal.getId());
-        HttpStatus estado = resultado.creado() ? HttpStatus.CREATED : HttpStatus.OK;
-        return ResponseEntity.status(estado).body(resultado.cronograma());
+        return ResponseEntity.ok(servicio.consultar(idVenta, principal));
     }
 
     /** Consulta el cronograma guardado de una venta (administrador de la tienda o el propio cliente). */
