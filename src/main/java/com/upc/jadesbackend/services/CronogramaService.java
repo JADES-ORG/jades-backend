@@ -153,7 +153,7 @@ public class CronogramaService {
         BigDecimal tedMora = moraPactada
                 .map(m -> tasaDiaria(m.getTipoTasaMora(), m.getTasaMoratoria(), m.getPeriodoTasaMora(),
                         m.getCapitalizacionMora()))
-                .orElse(BigDecimal.ZERO);
+                .orElseThrow(() -> new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria pactada"));
 
         LocalTime horaCorte = condicion.getHoraCorte() == null ? HORA_CORTE_DEFECTO : condicion.getHoraCorte();
         Plan plan = construirPlan(venta.getTotalVenta(), tem, numeroCuotas, venta.getFechaVenta(),
@@ -215,7 +215,8 @@ public class CronogramaService {
                 throw new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada");
             }
         } else {
-            validarAccesoAdmin(principal.getId(), cliente);
+            if (!accesos.tieneVinculoActivo(principal.getId(), cliente.getIdTienda().getId()))
+                throw new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada");
         }
 
         Credito credito = creditos.findByIdVenta_Id(idVenta)
@@ -266,12 +267,10 @@ public class CronogramaService {
                 .toList();
 
         CondicionesAplicadas pactadas = credito.getCondicionesAplicadas();
-        LocalDate finGracia = pactadas != null && pactadas.getFinGracia() != null
-                ? pactadas.getFinGracia() : credito.getFechaPrimerPago().minusMonths(1);
-        long diasGracia = pactadas != null && pactadas.getDiasGracia() != null
-                ? pactadas.getDiasGracia() : ChronoUnit.DAYS.between(venta.getFechaVenta(), finGracia);
+        LocalDate finGracia = pactadas == null ? null : pactadas.getFinGracia();
+        Long diasGracia = pactadas == null ? null : pactadas.getDiasGracia();
         BigDecimal ted = credito.getTasaEfectivaDiariaAplicada();
-        BigDecimal tem = CalculoFinancieroUtil.convertirTasaEfectiva(ted, 1, CalculoFinancieroUtil.BASE_MENSUAL);
+        BigDecimal tem = ted == null ? null : CalculoFinancieroUtil.convertirTasaEfectiva(ted, 1, CalculoFinancieroUtil.BASE_MENSUAL);
         BigDecimal ajuste = lista.isEmpty() || credito.getCuotaMensual() == null
                 ? BigDecimal.ZERO
                 : lista.get(lista.size() - 1).getImporte().subtract(credito.getCuotaMensual());

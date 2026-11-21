@@ -90,7 +90,7 @@ public class PagoUnicoService {
                             m.getPeriodoTasaMora(),
                             m.getCapitalizacionMora()
                     ))
-                    .orElse(BigDecimal.ZERO);
+                    .orElseThrow(() -> new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria pactada"));
 
         } catch (IllegalArgumentException ex) {
             throw new NegocioException(HttpStatus.BAD_REQUEST, ex.getMessage());
@@ -148,7 +148,7 @@ public class PagoUnicoService {
                         HttpStatus.NOT_FOUND, "Venta no encontrada");
             }
         } else {
-            acceso.exigir(venta.getIdCliente().getIdTienda().getId(), usuario);
+            acceso.exigirParaCobro(venta.getIdCliente().getIdTienda().getId(), usuario);
         }
 
         validarModalidad(venta);
@@ -208,7 +208,7 @@ public class PagoUnicoService {
                 credito.getFechaPrimerPago()
         );
 
-        BigDecimal tasaPeriodo = CalculoFinancieroUtil.convertirTasaEfectiva(
+        BigDecimal tasaPeriodo = credito.getTasaEfectivaDiariaAplicada() == null ? null : CalculoFinancieroUtil.convertirTasaEfectiva(
                 credito.getTasaEfectivaDiariaAplicada(),
                 1,
                 Math.toIntExact(dias)

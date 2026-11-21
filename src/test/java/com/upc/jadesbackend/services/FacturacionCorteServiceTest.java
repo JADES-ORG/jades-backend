@@ -54,6 +54,23 @@ class FacturacionCorteServiceTest {
     }
 
     @Test
+    void cadaObligacionRespetaSuPactoAlAsignarElCiclo() {
+        CondicionCredito condicion = new CondicionCredito();
+        condicion.setDiaCorte(20);
+        Credito credito = new Credito();
+        Cuota cuota = new Cuota();
+        cuota.setIdCredito(credito);
+        cuota.setFechaVencimiento(LocalDate.of(2026, 10, 5));
+        condicion.setDiaPago(5);
+        credito.setCondicionesAplicadas(new CondicionesAplicadas(condicion, new TasaInteres(), null, null, null));
+        assertTrue(servicio.esExigibleEnCiclo(cuota, YearMonth.of(2026, 9)));
+        condicion.setDiaPago(26);
+        cuota.setFechaVencimiento(LocalDate.of(2026, 10, 26));
+        credito.setCondicionesAplicadas(new CondicionesAplicadas(condicion, new TasaInteres(), null, null, null));
+        assertFalse(servicio.esExigibleEnCiclo(cuota, YearMonth.of(2026, 9)));
+    }
+
+    @Test
     @DisplayName("HU-13: Regla de ciclo: compras dentro de la ventana de corte anterior a actual a las 18:00h")
     void pertenenciaAlCiclo() {
         LocalDate corteAnt = LocalDate.of(2026, 8, 20);
@@ -121,6 +138,8 @@ class FacturacionCorteServiceTest {
 
         Credito cred = new Credito();
         cred.setId(201L);
+        cred.setFechaCorte(LocalDate.of(2026, 9, 20).atStartOfDay(FacturacionCorteService.ZONA_PERU).toInstant());
+        cred.setFechaPrimerPago(LocalDate.of(2026, 9, 26));
         cred.setCodigoCredito("CR-000101");
         cred.setIdVenta(v1);
         cred.setInteresesTotales(new BigDecimal("36.38"));

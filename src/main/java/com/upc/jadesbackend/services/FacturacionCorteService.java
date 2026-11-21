@@ -98,7 +98,7 @@ public class FacturacionCorteService {
             LocalDate fechaEvaluacion,
             Long idUsuarioAdmin) {
 
-        if (!accesos.tieneAccesoActivo(idUsuarioAdmin, idTienda)) {
+        if (!accesos.tieneVinculoActivo(idUsuarioAdmin, idTienda)) {
             throw new NegocioException(HttpStatus.NOT_FOUND, "Tienda no autorizada para el usuario administrador");
         }
 
@@ -151,18 +151,6 @@ public class FacturacionCorteService {
 
         List<Venta> todasVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(cliente.getId());
         String moneda = condicion.getMonedaCredito() != null ? condicion.getMonedaCredito() : "PEN";
-        for (Venta venta : todasVentas) {
-            if ("ANULADA".equalsIgnoreCase(venta.getEstadoVenta()) || venta.getFechaCorteAsignada() == null
-                    || !YearMonth.from(venta.getFechaCorteAsignada()).equals(ciclo)) continue;
-            var aplicadas = creditos.findByIdVenta_Id(venta.getId()).map(Credito::getCondicionesAplicadas);
-            if (aplicadas.isPresent()) {
-                diaCorte = aplicadas.get().getDiaCorte();
-                diaPago = aplicadas.get().getDiaPago();
-                horaCorte = venta.getFechaCorteAsignada().toLocalTime();
-                moneda = venta.getMonedaVenta();
-                break;
-            }
-        }
         LocalDate corteActual = CalendarioCreditoUtil.fechaEnMes(ciclo, diaCorte);
         LocalDate corteAnterior = CalendarioCreditoUtil.fechaEnMes(ciclo.minusMonths(1), diaCorte);
         LocalDate fechaLimitePago = CalendarioCreditoUtil.fechaFinGracia(corteActual, diaCorte, diaPago, 0);
@@ -233,6 +221,7 @@ public class FacturacionCorteService {
         BigDecimal totalMora = BigDecimal.ZERO;
         BigDecimal totalExigible = BigDecimal.ZERO;
         int cuotasEnMoraCount = 0;
+        Set<LocalDate> vencimientosDelCiclo = new HashSet<>();
 
         for (Cuota c : todasCuotas) {
             if (cuotasPagadasIds.contains(c.getId())) {
@@ -241,7 +230,8 @@ public class FacturacionCorteService {
 
             LocalDate venc = c.getFechaVencimiento();
             // Una cuota es exigible en este corte si vence en la fecha límite de pago o si ya estaba vencida
-            if (venc.isEqual(fechaLimitePago) || venc.isBefore(fechaLimitePago)) {
+            if (esExigibleEnCiclo(c, ciclo)) {
+                if (!esExigibleEnCiclo(c, ciclo.minusMonths(1))) vencimientosDelCiclo.add(venc);
                 Credito cred = c.getIdCredito();
                 Venta v = cred.getIdVenta();
 
@@ -297,12 +287,33 @@ public class FacturacionCorteService {
                 corteAnterior,
                 corteActual,
                 horaCorte,
-                fechaLimitePago,
+                vencimientosDelCiclo.size() > 1 ? null : vencimientosDelCiclo.stream().findFirst().orElse(fechaLimitePago),
                 moneda,
                 resumen,
                 comprasCiclo,
                 obligaciones
         );
+    }
+
+    boolean esExigibleEnCiclo(Cuota cuota, YearMonth ciclo) {
+        Credito credito = cuota.getIdCredito();
+        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
+        YearMonth mesVencimiento = YearMonth.from(cuota.getFechaVencimiento());
+        if (pacto != null && pacto.getDiaPago() != null && pacto.getDiaCorte() != null) {
+            YearMonth mesCorte = pacto.getDiaPago() <= pacto.getDiaCorte()
+                    ? mesVencimiento.minusMonths(1) : mesVencimiento;
+            return !mesCorte.isAfter(ciclo);
+        }
+        if (mesVencimiento.compareTo(ciclo) <= 0) return true;
+        if (mesVencimiento.isAfter(ciclo.plusMonths(1))) return false;
+        Venta venta = credito.getIdVenta();
+        if (credito.getFechaCorte() == null || credito.getFechaPrimerPago() == null)
+            throw new NegocioException(HttpStatus.CONFLICT, "Falta el calendario histórico de la cuota " + cuota.getId());
+        int meses = "MENSUAL".equals(venta.getModalidadPago())
+                ? 1 + Objects.requireNonNullElse(venta.getGraciaAdicional(), 0) : 0;
+        YearMonth corteOriginal = YearMonth.from(credito.getFechaCorte().atZone(ZONA_PERU));
+        YearMonth pagoOriginal = YearMonth.from(credito.getFechaPrimerPago()).minusMonths(meses);
+        return pagoOriginal.equals(corteOriginal.plusMonths(1));
     }
 
     private void validarMoneda(String moneda, Venta venta) {
@@ -342,7 +353,7 @@ public class FacturacionCorteService {
                 throw new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado");
             }
         } else {
-            if (!accesos.tieneAccesoActivo(principal.getId(), cliente.getIdTienda().getId())) {
+            if (!accesos.tieneVinculoActivo(principal.getId(), cliente.getIdTienda().getId())) {
                 throw new NegocioException(HttpStatus.NOT_FOUND, "Cliente no autorizado en las tiendas asignadas");
             }
         }

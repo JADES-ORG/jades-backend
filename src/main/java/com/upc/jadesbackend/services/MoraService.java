@@ -33,21 +33,15 @@ public class MoraService {
     private final CuotaRepositorio cuotas;
     private final PagoRepositorio pagos;
     private final ClienteRepositorio clientes;
-    private final TasaMoratoriaRepositorio tasasMora;
-    private final CondicionCreditoRepositorio condiciones;
     private final UsuarioTiendaRepositorio accesos;
 
     public MoraService(CuotaRepositorio cuotas,
                        PagoRepositorio pagos,
                        ClienteRepositorio clientes,
-                       TasaMoratoriaRepositorio tasasMora,
-                       CondicionCreditoRepositorio condiciones,
                        UsuarioTiendaRepositorio accesos) {
         this.cuotas = cuotas;
         this.pagos = pagos;
         this.clientes = clientes;
-        this.tasasMora = tasasMora;
-        this.condiciones = condiciones;
         this.accesos = accesos;
     }
 
@@ -103,7 +97,7 @@ public class MoraService {
     ResponseCalculoMoraDTO construirDetalleMora(Cuota cuota, Credito credito, Venta venta, LocalDate fechaRef) {
         Optional<Pago> pagoOpt = pagos.findByIdCuota_Id(cuota.getId());
         String moneda = venta.getMonedaVenta() != null ? venta.getMonedaVenta() : "PEN";
-        BigDecimal tasaMoraDiaria = obtenerTasaMoraDiaria(credito, venta.getIdCliente());
+        BigDecimal tasaMoraDiaria = credito.getTasaMoraDiariaAplicada();
 
         if (pagoOpt.filter(p -> p.getFechaPagoEfectivo() != null && !p.getFechaPagoEfectivo().isAfter(fechaRef)).isPresent()) {
             Pago p = pagoOpt.get();
@@ -128,7 +122,9 @@ public class MoraService {
         }
 
         long dias = CalculoFinancieroUtil.diasAtraso(cuota.getFechaVencimiento(), fechaRef);
-        ResultadoMora resultadoMora = CalculoFinancieroUtil.calcularMora(cuota.getImporte(), tasaMoraDiaria, dias);
+        if (dias > 0 && tasaMoraDiaria == null)
+            throw new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria histórica de este crédito");
+        ResultadoMora resultadoMora = CalculoFinancieroUtil.calcularMora(cuota.getImporte(), tasaMoraDiaria == null ? BigDecimal.ZERO : tasaMoraDiaria, dias);
 
         boolean enMora = dias > 0 && resultadoMora.interesMoratorio().signum() > 0;
         String estadoCuota = enMora ? "EN_MORA" : "PROGRAMADA";
@@ -204,20 +200,6 @@ public class MoraService {
         );
     }
 
-    BigDecimal obtenerTasaMoraDiaria(Credito credito, Cliente cliente) {
-        if (credito.getTasaMoraDiariaAplicada() != null) {
-            return credito.getTasaMoraDiariaAplicada();
-        }
-        return condiciones.findByIdCliente_Id(cliente.getId())
-                .flatMap(c -> tasasMora.findByIdCondicion_Id(c.getId()))
-                .map(m -> CalculoFinancieroUtil.tasaEfectivaDiaria(
-                        m.getTipoTasaMora(),
-                        m.getTasaMoratoria(),
-                        m.getPeriodoTasaMora(),
-                        m.getCapitalizacionMora()))
-                .orElse(BigDecimal.ZERO);
-    }
-
     private void validarAcceso(UsuarioPrincipal principal, Cliente cliente) {
         if ("CLIENTE".equals(principal.getRol())) {
             boolean esSuya = cliente.getIdUsuario() != null && principal.getId().equals(cliente.getIdUsuario().getId());
@@ -230,7 +212,7 @@ public class MoraService {
     }
 
     private void validarAccesoAdmin(Long idUsuarioAdmin, Long idTienda) {
-        if (!accesos.tieneAccesoActivo(idUsuarioAdmin, idTienda)) {
+        if (!accesos.tieneVinculoActivo(idUsuarioAdmin, idTienda)) {
             throw new NegocioException(HttpStatus.NOT_FOUND, "Información no encontrada en las tiendas autorizadas");
         }
     }

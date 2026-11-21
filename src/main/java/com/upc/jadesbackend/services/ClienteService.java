@@ -42,6 +42,16 @@ public class ClienteService {
         acceso.exigir(tienda, usuario);
         Cliente e = buscar(tienda, id);
         aplicar(tienda, e, dto);
+        Usuario cuenta = e.getIdUsuario();
+        if (cuenta != null) {
+            if (dto.correoCliente() == null || dto.correoCliente().isBlank() || dto.correoCliente().length() > 150)
+                throw new NegocioException(HttpStatus.BAD_REQUEST, "Se requiere un correo válido para la cuenta vinculada");
+            String correo = dto.correoCliente().trim().toLowerCase(Locale.ROOT);
+            if (usuarios.findByCorreoUsuarioIgnoreCase(correo).filter(u -> !u.getId().equals(cuenta.getId())).isPresent())
+                throw new NegocioException(HttpStatus.CONFLICT, "El correo de acceso ya está registrado");
+            cuenta.setCorreoUsuario(correo);
+            e.setCorreoCliente(correo);
+        }
         return ResponseClienteDTO.de(repositorio.save(e));
     }
     public ResponseClienteDTO desactivar(Long tienda, Long id, UsuarioPrincipal usuario) {

@@ -32,11 +32,13 @@ class JadesBackendApplicationTests {
     @Autowired CreditoRepositorio creditos;
     @Autowired CuotaRepositorio cuotas;
     @Autowired PagoService pagos;
+    @Autowired AdministradorPortalService portalAdmin;
 
     @ParameterizedTest
-    @ValueSource(strings = {"UNICO", "MENSUAL"})
+    @ValueSource(strings = {"UNICO", "MENSUAL", "LIMITE_CON_GRACIA", "PAGO_ANTICIPADO"})
     @Transactional
-    void ventaConCuentaCuotasYCobro(String modalidad) {
+    void ventaConCuentaCuotasYCobro(String escenario) {
+        String modalidad = escenario.equals("UNICO") ? "UNICO" : "MENSUAL";
         Tienda tienda = new Tienda();
         tienda.setNombreTienda("Tienda de prueba");
         tienda.setRazonSocial("Prueba");
@@ -62,9 +64,14 @@ class JadesBackendApplicationTests {
         var cliente = clientes.registrar(tienda.getId(),
                 new RequestAltaClienteDTO("Cliente", "12345678", null, "cliente@example.test", "Prueba12345"), principal);
         assertEquals("CLIENTE", em.find(Cliente.class, cliente.id()).getIdUsuario().getRol());
+        clientes.actualizar(tienda.getId(), cliente.id(), new RequestClienteDTO("Cliente",
+                "12345678", null, "NUEVO@example.test"), principal);
+        var actualizado = em.find(Cliente.class, cliente.id());
+        assertEquals("nuevo@example.test", actualizado.getCorreoCliente());
+        assertEquals(actualizado.getCorreoCliente(), actualizado.getIdUsuario().getCorreoUsuario());
         var tasa = new BigDecimal("0.18");
         condiciones.registrar(tienda.getId(), cliente.id(), new RequestCondicionCrediticiaDTO("PEN",
-                new BigDecimal("5000"), 12, 20, 26, null, "NOMINAL", tasa, "ANUAL", "MENSUAL",
+                new BigDecimal(escenario.equals("LIMITE_CON_GRACIA") ? "100" : "5000"), 12, 20, 26, null, "NOMINAL", tasa, "ANUAL", "MENSUAL",
                 "EFECTIVA", tasa, "ANUAL", null), principal);
         Producto producto = new Producto();
         producto.setIdTienda(tienda);
@@ -77,14 +84,29 @@ class JadesBackendApplicationTests {
         producto.setEstadoProducto("ACTIVO");
         em.persist(producto);
         int plazo = modalidad.equals("UNICO") ? 1 : 3;
-        var solicitud = new RequestVentaDTO(cliente.id(), modalidad, plazo, 0,
+        var solicitud = new RequestVentaDTO(cliente.id(), modalidad, plazo, escenario.equals("LIMITE_CON_GRACIA") ? 1 : 0,
                 List.of(new RequestVentaDTO.Detalle(producto.getId(), BigDecimal.ONE)));
+        if (escenario.equals("LIMITE_CON_GRACIA")) {
+            var error = assertThrows(com.upc.jadesbackend.exceptions.NegocioException.class,
+                    () -> ventas.registrar(tienda.getId(), solicitud, principal, "prueba-venta"));
+            assertTrue(error.getMessage().contains("capital con la gracia"));
+            return;
+        }
         var venta = ventas.registrar(tienda.getId(), solicitud, principal, "prueba-venta");
         assertEquals(venta.id(), ventas.registrar(tienda.getId(), solicitud, principal, "prueba-venta").id());
         var credito = creditos.findByIdVenta_Id(venta.id()).orElseThrow();
         var cronograma = cuotas.findAllByIdCredito_IdOrderByNumeroCuotaAsc(credito.getId());
         assertEquals(plazo, cronograma.size());
         var primera = cronograma.getFirst();
+        if (escenario.equals("PAGO_ANTICIPADO")) {
+            assertThrows(com.upc.jadesbackend.exceptions.NegocioException.class,
+                    () -> pagos.registrar(primera.getId(), new RequestRegistrarPagoDTO(primera.getImporte(),
+                            LocalDate.now(FacturacionCorteService.ZONA_PERU), "EFECTIVO"), principal));
+            return;
+        }
+        tienda.setEstadoTienda("INACTIVO");
+        assertNotNull(portalAdmin.consultarCuentaCliente(admin.getId(), cliente.id()));
+        primera.setFechaVencimiento(LocalDate.now(FacturacionCorteService.ZONA_PERU));
         pagos.registrar(primera.getId(), new RequestRegistrarPagoDTO(primera.getImporte(),
                 LocalDate.now(FacturacionCorteService.ZONA_PERU), "EFECTIVO"), principal);
         em.flush();
