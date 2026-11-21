@@ -35,9 +35,28 @@ class MoraServiceTest {
 
     private MoraService servicio;
 
+    @Test
+    void tasaHistoricaCeroNoUsaCondicionesActuales() {
+        Credito credito = new Credito();
+        credito.setTasaMoraDiariaAplicada(BigDecimal.ZERO);
+        var cuota = crearCuotaMock(BigDecimal.TEN, LocalDate.of(2026, 9, 26), BigDecimal.ZERO);
+        assertEquals(0, servicio.construirDetalleMora(cuota, cuota.getIdCredito(), cuota.getIdCredito().getIdVenta(),
+                LocalDate.of(2026, 9, 28)).interesMoratorio().signum());
+        verifyNoInteractions(condiciones, tasasMora);
+    }
+
+    @Test
+    void tasaHistoricaDesconocidaImpideLiquidarMora() {
+        var cuota = crearCuotaMock(new BigDecimal("100.00"), LocalDate.of(2026, 9, 26), null);
+        var credito = cuota.getIdCredito();
+        assertThrows(com.upc.jadesbackend.exceptions.NegocioException.class,
+                () -> servicio.construirDetalleMora(cuota, credito, credito.getIdVenta(), LocalDate.of(2026, 9, 27)));
+        verifyNoInteractions(condiciones, tasasMora);
+    }
+
     @BeforeEach
     void setUp() {
-        servicio = new MoraService(cuotas, pagos, clientes, tasasMora, condiciones, accesos);
+        servicio = new MoraService(cuotas, pagos, clientes, accesos);
     }
 
     private static void igual(String esperado, BigDecimal real) {
@@ -152,6 +171,11 @@ class MoraServiceTest {
 
         ResponseCalculoMoraDTO res = servicio.construirDetalleMora(cuota, cuota.getIdCredito(), cuota.getIdCredito().getIdVenta(), LocalDate.of(2026, 11, 1));
 
+        var anterior = servicio.construirDetalleMora(cuota, cuota.getIdCredito(),
+                cuota.getIdCredito().getIdVenta(), LocalDate.of(2026, 10, 28));
+        assertFalse(anterior.pagada());
+        assertEquals(2L, anterior.diasAtraso());
+        igual("0.83", anterior.interesMoratorio());
         assertTrue(res.pagada());
         assertEquals(6L, res.diasAtraso());
         igual("2.49", res.interesMoratorio());

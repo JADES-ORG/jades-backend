@@ -54,6 +54,23 @@ class FacturacionCorteServiceTest {
     }
 
     @Test
+    void cadaObligacionRespetaSuPactoAlAsignarElCiclo() {
+        CondicionCredito condicion = new CondicionCredito();
+        condicion.setDiaCorte(20);
+        Credito credito = new Credito();
+        Cuota cuota = new Cuota();
+        cuota.setIdCredito(credito);
+        cuota.setFechaVencimiento(LocalDate.of(2026, 10, 5));
+        condicion.setDiaPago(5);
+        credito.setCondicionesAplicadas(new CondicionesAplicadas(condicion, new TasaInteres(), null, null, null));
+        assertTrue(servicio.esExigibleEnCiclo(cuota, YearMonth.of(2026, 9)));
+        condicion.setDiaPago(26);
+        cuota.setFechaVencimiento(LocalDate.of(2026, 10, 26));
+        credito.setCondicionesAplicadas(new CondicionesAplicadas(condicion, new TasaInteres(), null, null, null));
+        assertFalse(servicio.esExigibleEnCiclo(cuota, YearMonth.of(2026, 9)));
+    }
+
+    @Test
     @DisplayName("HU-13: Regla de ciclo: compras dentro de la ventana de corte anterior a actual a las 18:00h")
     void pertenenciaAlCiclo() {
         LocalDate corteAnt = LocalDate.of(2026, 8, 20);
@@ -121,9 +138,13 @@ class FacturacionCorteServiceTest {
 
         Credito cred = new Credito();
         cred.setId(201L);
+        cred.setFechaCorte(LocalDate.of(2026, 9, 20).atStartOfDay(FacturacionCorteService.ZONA_PERU).toInstant());
+        cred.setFechaPrimerPago(LocalDate.of(2026, 9, 26));
         cred.setCodigoCredito("CR-000101");
         cred.setIdVenta(v1);
         cred.setInteresesTotales(new BigDecimal("36.38"));
+        cred.setCapitalVenta(new BigDecimal("1200.00"));
+        cred.setTotalFinanciamiento(new BigDecimal("1242.95"));
 
         when(creditos.findByIdVenta_Id(101L)).thenReturn(Optional.of(cred));
 
@@ -169,7 +190,7 @@ class FacturacionCorteServiceTest {
         assertEquals(1, corte1.compras().size());
         assertEquals(101L, corte1.compras().get(0).idVenta());
         igual("1200.00", corte1.compras().get(0).totalVenta());
-        igual("36.38", corte1.compras().get(0).interesEstimado());
+        igual("42.95", corte1.compras().get(0).interesEstimado());
 
         // Obligaciones exigibles y totales
         assertEquals(1, corte1.obligaciones().size());
@@ -181,5 +202,59 @@ class FacturacionCorteServiceTest {
         // Segunda ejecución (Idempotencia estricta: mismos valores sin duplicar)
         ResponseListadoCorteDTO corte2 = servicio.construirListadoCorte(cliente, cicloSeptiembre, fechaRef);
         assertEquals(corte1, corte2);
+    }
+
+    @Test
+    void incluyeClienteInactivoEnListadoDeTienda() {
+        Tienda tienda = new Tienda();
+        tienda.setId(1L);
+        Cliente inactivo = new Cliente();
+        inactivo.setId(7L);
+        inactivo.setIdTienda(tienda);
+        inactivo.setEstadoCliente("INACTIVO");
+        CondicionCredito condicion = new CondicionCredito();
+        condicion.setDiaCorte(20);
+        condicion.setDiaPago(26);
+        condicion.setMonedaCredito("PEN");
+        when(accesos.tieneVinculoActivo(9L, 1L)).thenReturn(true);
+        when(clientes.findAllByIdTienda_Id(1L)).thenReturn(List.of(inactivo));
+        when(condiciones.findByIdCliente_Id(7L)).thenReturn(Optional.of(condicion));
+        when(ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(7L)).thenReturn(List.of());
+        when(cuotas.findAllByIdCredito_IdVenta_IdCliente_IdOrderByFechaVencimientoAsc(7L)).thenReturn(List.of());
+        when(pagos.findAllByIdCuota_IdCredito_IdVenta_IdCliente_IdOrderByFechaPagoEfectivoDesc(7L)).thenReturn(List.of());
+        var listado = servicio.generarListadoCorteTienda(1L, YearMonth.of(2026, 9), LocalDate.of(2026, 9, 20), 9L);
+        assertEquals(1, listado.size());
+        assertEquals(7L, listado.getFirst().idCliente());
+    }
+
+    @Test
+    void conservaMonedaOriginalDeVentaAunqueCondicionActualSeaDistinta() {
+        Tienda tienda = new Tienda();
+        tienda.setId(1L);
+        Cliente cliente = new Cliente();
+        cliente.setId(8L);
+        cliente.setIdTienda(tienda);
+        CondicionCredito condicion = new CondicionCredito();
+        condicion.setDiaCorte(20);
+        condicion.setDiaPago(26);
+        condicion.setMonedaCredito("PEN");
+        Venta venta = new Venta();
+        venta.setId(13L);
+        venta.setFechaVenta(LocalDate.of(2026, 9, 15));
+        venta.setHoraVenta(LocalTime.of(12, 0));
+        venta.setEstadoVenta("VIGENTE");
+        venta.setMonedaVenta("USD");
+        venta.setTotalVenta(new BigDecimal("100.00"));
+        venta.setFechaCorteAsignada(java.time.LocalDateTime.of(2026, 9, 20, 18, 0));
+        when(condiciones.findByIdCliente_Id(8L)).thenReturn(Optional.of(condicion));
+        when(ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(8L)).thenReturn(List.of(venta));
+        when(creditos.findByIdVenta_Id(13L)).thenReturn(Optional.empty());
+        when(cuotas.findAllByIdCredito_IdVenta_IdCliente_IdOrderByFechaVencimientoAsc(8L)).thenReturn(List.of());
+        when(pagos.findAllByIdCuota_IdCredito_IdVenta_IdCliente_IdOrderByFechaPagoEfectivoDesc(8L)).thenReturn(List.of());
+        var reporte = servicio.construirListadoCorte(cliente, YearMonth.of(2026, 9), LocalDate.of(2026, 9, 20));
+        assertEquals("USD", reporte.moneda());
+        igual("100.00", reporte.resumen().totalComprasCiclo());
+        assertEquals(LocalDate.of(2026, 9, 20), reporte.fechaCorteActual());
+        assertNull(reporte.fechaCorteAnterior());
     }
 }
