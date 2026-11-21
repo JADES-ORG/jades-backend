@@ -39,6 +39,12 @@ Documentación adicional:
 
 ---
 
+## Convenciones de datos
+
+Las tasas se reciben como **fracciones decimales**: una tasa del 18 % se envía como `0.18`, no como `18`. El frontend debe dividir entre 100 si muestra porcentajes. Las tasas históricas guardadas como números mayores que `1` requieren revisión y migración supervisada; no se reinterpretan automáticamente.
+
+La moneda `PEN` o `USD` se configura una sola vez para cada cliente. En la edición de condiciones debe mostrarse como solo lectura; el backend rechaza el cambio.
+
 ## Cómo correrlo en local
 
 ### 1. Requisitos

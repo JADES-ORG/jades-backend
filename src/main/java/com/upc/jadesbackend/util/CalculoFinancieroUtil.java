@@ -87,16 +87,16 @@ public final class CalculoFinancieroUtil {
     // ------------------------------------------------------------------
 
     /**
-     * Normaliza una tasa al formato de fracción decimal (ej. 18% entra como 18.0 o 0.18 -> retorna 0.18).
-     * Si el valor es mayor o igual a 1.0 se divide entre 100 para proteger al motor contra ingresos en porcentaje.
+     * Las tasas de la API se expresan como fracción decimal: 18% = 0.18.
+     * No se convierten porcentajes automáticamente: 18.0 es inválido; 1.0 significa 100%.
      */
     public static BigDecimal normalizarTasa(BigDecimal valorTasa) {
         if (valorTasa == null) {
             return BigDecimal.ZERO;
         }
         validarNoNegativo(valorTasa, "valor de la tasa");
-        if (valorTasa.compareTo(BigDecimal.ONE) >= 0) {
-            return valorTasa.divide(BigDecimal.valueOf(100), DECIMALES_TASA, REDONDEO);
+        if (valorTasa.compareTo(BigDecimal.ONE) > 0) {
+            throw new IllegalArgumentException("La tasa debe ser una fracción decimal (18% = 0.18) no mayor que 1.0");
         }
         return valorTasa;
     }
@@ -120,7 +120,7 @@ public final class CalculoFinancieroUtil {
 
     /**
      * Convierte la tasa pactada (nominal o efectiva) a una tasa efectiva para {@code diasObjetivo} días.
-     * Soporta automáticamente tasas ingresadas tanto en porcentaje (18.0) como en fracción decimal (0.18).
+     * Recibe exclusivamente tasas en fracción decimal (18% = 0.18).
      *
      * <ul>
      *   <li>EFECTIVA: {@code (1 + i)^(dias / diasPeriodo) - 1}</li>
