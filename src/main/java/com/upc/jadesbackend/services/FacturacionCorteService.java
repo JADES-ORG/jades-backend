@@ -109,7 +109,7 @@ public class FacturacionCorteService {
         List<ResponseListadoCorteDTO> resultado = new ArrayList<>();
 
         for (Cliente c : listaClientes) {
-            if ("ACTIVO".equalsIgnoreCase(c.getEstadoCliente()) && condiciones.findByIdCliente_Id(c.getId()).isPresent()) {
+            if (condiciones.findByIdCliente_Id(c.getId()).isPresent()) {
                 resultado.add(construirListadoCorte(c, cicloFacturacion, fechaRef));
             }
         }
@@ -150,7 +150,7 @@ public class FacturacionCorteService {
         LocalTime horaCorte = condicion.getHoraCorte() != null ? condicion.getHoraCorte() : HORA_CORTE_DEFECTO;
 
         List<Venta> todasVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(cliente.getId());
-        String moneda = condicion.getMonedaCredito() != null ? condicion.getMonedaCredito() : "PEN";
+        String moneda = null;
         LocalDate corteActual = CalendarioCreditoUtil.fechaEnMes(ciclo, diaCorte);
         LocalDate corteAnterior = CalendarioCreditoUtil.fechaEnMes(ciclo.minusMonths(1), diaCorte);
         LocalDate fechaLimitePago = CalendarioCreditoUtil.fechaFinGracia(corteActual, diaCorte, diaPago, 0);
@@ -160,6 +160,8 @@ public class FacturacionCorteService {
         // 1. Compras ordenadas cronológicamente
         List<CompraCiclo> comprasCiclo = new ArrayList<>();
         BigDecimal totalCompras = BigDecimal.ZERO;
+        Set<LocalDate> fechasCorteHistoricas = new HashSet<>();
+        Set<LocalTime> horasCorteHistoricas = new HashSet<>();
 
         for (Venta v : todasVentas) {
             if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta())) {
@@ -179,7 +181,12 @@ public class FacturacionCorteService {
             );
 
             if (pertenece) {
+                if (moneda == null) moneda = v.getMonedaVenta();
                 validarMoneda(moneda, v);
+                if (v.getFechaCorteAsignada() != null) {
+                    fechasCorteHistoricas.add(v.getFechaCorteAsignada().toLocalDate());
+                    horasCorteHistoricas.add(v.getFechaCorteAsignada().toLocalTime());
+                }
                 Optional<Credito> credOpt = creditos.findByIdVenta_Id(v.getId());
                 Long idCredito = credOpt.map(Credito::getId).orElse(null);
                 String codigoCredito = credOpt.map(Credito::getCodigoCredito).orElse(null);
@@ -235,6 +242,7 @@ public class FacturacionCorteService {
                 Credito cred = c.getIdCredito();
                 Venta v = cred.getIdVenta();
 
+                if (moneda == null) moneda = v.getMonedaVenta();
                 validarMoneda(moneda, v);
                 ResponseCalculoMoraDTO moraDto = moraService.construirDetalleMora(c, cred, v, fechaRef);
 
@@ -277,6 +285,17 @@ public class FacturacionCorteService {
                 cuotasEnMoraCount
         );
 
+        if (fechasCorteHistoricas.size() == 1) {
+            corteActual = fechasCorteHistoricas.iterator().next();
+            corteAnterior = null; // Sin pacto histórico completo no es seguro reconstruir el corte anterior.
+            if (horasCorteHistoricas.size() == 1) horaCorte = horasCorteHistoricas.iterator().next();
+        } else if (fechasCorteHistoricas.size() > 1) {
+            corteActual = null;
+            corteAnterior = null;
+            horaCorte = null; // No existe una cabecera única para calendarios históricos diferentes.
+        }
+        if (moneda == null) moneda = condicion.getMonedaCredito() == null ? "PEN" : condicion.getMonedaCredito();
+
         return new ResponseListadoCorteDTO(
                 cliente.getId(),
                 cliente.getNombreCliente(),
@@ -317,7 +336,7 @@ public class FacturacionCorteService {
     }
 
     private void validarMoneda(String moneda, Venta venta) {
-        if (venta.getMonedaVenta() != null && !moneda.equals(venta.getMonedaVenta()))
+        if (venta.getMonedaVenta() != null && moneda != null && !moneda.equals(venta.getMonedaVenta()))
             throw new NegocioException(HttpStatus.CONFLICT, "El ciclo contiene obligaciones en monedas distintas");
     }
 

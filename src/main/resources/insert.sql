@@ -1,41 +1,15 @@
--- JADES | Datos ficticios para PostgreSQL de pruebas.
--- Spring Boot carga este archivo después de Hibernate con el perfil demo.
--- Copiar insert.sql y application-demo.properties a src/main/resources.
--- Activar el perfil demo en la configuración de ejecución del backend.
--- El script no borra ni actualiza registros. Si la tienda demo ya existe, omite la carga.
+-- JADES | Datos ficticios para una base PostgreSQL de pruebas, no de producción.
+-- Este archivo no se ejecuta automáticamente: spring.sql.init.mode=never.
+-- IMPORTANTE: Las ventas históricas insertadas por este archivo NO incluyen filas
+-- de credito ni cuota. Los endpoints POST /cronogramas/ventas/{idVenta} y
+-- /deudas/pago-unico/ventas/{idVenta} únicamente consultan obligaciones existentes.
+-- No se deben recalcular créditos históricos con condiciones vigentes que podrían
+-- diferir de las originalmente pactadas. Para probar el flujo completo, registre
+-- ventas nuevas mediante el endpoint de ventas en una base de pruebas separada.
+-- Nunca ejecutar este archivo sobre datos de la tienda real sin revisión previa.
 --
--- LOGIN: POST /api/v1/autenticacion/iniciar-sesion
--- {"correo":"admin.jades.demo@example.com","contrasena":"JadesDemo!2026"}
--- Otras cuentas con la misma contraseña:
--- sistema.jades.demo@example.com, otra.jades.demo@example.com,
--- tea.jades.demo@example.com, tna.jades.demo@example.com y unico.jades.demo@example.com.
---
--- FLUJO (rutas relativas a /api/v1, usar JWT Bearer después del login):
--- 1. Copia el SELECT comentado al final y ejecútalo para obtener los IDs.
--- 2. Como admin.jades.demo, llama a POST /cronogramas/ventas/{idVenta}
---    para los dos casos mensuales y a POST /deudas/pago-unico/ventas/{idVenta}
---    para el pago único. Las solicitudes no llevan cuerpo. Usa GET en las
---    mismas rutas para consultar los resultados guardados. Repite los POST:
---    deben devolver la obligación existente sin duplicarla.
--- 3. Consulta GET /corte/clientes/{idCliente}?ciclo=2026-10&fechaEvaluacion=2026-10-26
---    para el cliente de pago único. Su compra del 21/09 cae en el corte 20/10
---    y el importe exigible al 26/10 es 207.02, sin mora si aún no has pagado.
--- 4. Usa el idCuota devuelto por pago único. Antes de registrar el pago,
---    consulta GET /mora/cuotas/{idCuota}?fechaEvaluacion=2026-10-31:
---    5 días de atraso, 0.89 de mora y 207.91 de total.
---    POST /pagos/cuotas/{idCuota} con 207.90 debe rechazar el pago.
---    Repite con {"monto":207.91,"fechaPagoEfectivo":"2026-10-31","medioPago":"EFECTIVO"}.
--- 5. Entra como unico.jades.demo y consulta GET /portal/mi-cuenta: observa el
---    pago registrado y un total pendiente de 0.00. Como tna.jades.demo,
---    consulta tus tres cuotas y comprueba que la venta del cliente TEA
---    no se puede consultar con tu sesión. El admin de la otra tienda
---    tampoco debe poder consultar las ventas de Bodega JADES Demo.
--- 6. Para probar una venta nueva desde la interfaz, como admin.jades.demo
---    elige Cliente Demo TNA y el producto Servicio Demo 200. Selecciona
---    1 unidad y 3 cuotas. En este ZIP la venta nueva toma la fecha del servidor,
---    de modo que sus vencimientos serán distintos a los casos históricos.
---    Con el caso TNA generado y sin pagos, 5 unidades (S/ 1,000) superan
---    el crédito disponible. Prueba primero el rechazo y luego la venta válida.
+-- Usuario de muestra: admin.jades.demo@example.com.
+-- Antes de usar estas credenciales, verificar el hash de la contraseña de prueba.
 --
 -- SIMULACIÓN sin guardar (mismo admin):
 -- POST /api/v1/cronogramas/simular
@@ -135,7 +109,7 @@ VALUES (condicion_demo, 0.36, 'EFECTIVA', 'ANUAL', NULL);
 INSERT INTO producto (id_tienda, nombre_producto, descripcion, precio_contado, precio_credito,
                       tipo_producto, unidad_medida, modalidad, estado_producto)
 VALUES (tienda_demo, caso.producto, 'Artículo ficticio para pruebas',
-        caso.precio_contado, caso.precio_credito, caso.tipo_producto, 'Unidad', 'AMBAS', 'ACTIVO')
+        caso.precio_contado, caso.precio_credito, caso.tipo_producto, 'UNIDAD', 'AMBAS', 'ACTIVO')
     RETURNING id_producto INTO producto_demo;
 
 INSERT INTO venta (id_cliente, id_usuario_registro, fecha_venta, hora_venta, modalidad_pago,

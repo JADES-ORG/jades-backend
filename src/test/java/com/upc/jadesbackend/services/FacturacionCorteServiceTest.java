@@ -203,4 +203,58 @@ class FacturacionCorteServiceTest {
         ResponseListadoCorteDTO corte2 = servicio.construirListadoCorte(cliente, cicloSeptiembre, fechaRef);
         assertEquals(corte1, corte2);
     }
+
+    @Test
+    void incluyeClienteInactivoEnListadoDeTienda() {
+        Tienda tienda = new Tienda();
+        tienda.setId(1L);
+        Cliente inactivo = new Cliente();
+        inactivo.setId(7L);
+        inactivo.setIdTienda(tienda);
+        inactivo.setEstadoCliente("INACTIVO");
+        CondicionCredito condicion = new CondicionCredito();
+        condicion.setDiaCorte(20);
+        condicion.setDiaPago(26);
+        condicion.setMonedaCredito("PEN");
+        when(accesos.tieneVinculoActivo(9L, 1L)).thenReturn(true);
+        when(clientes.findAllByIdTienda_Id(1L)).thenReturn(List.of(inactivo));
+        when(condiciones.findByIdCliente_Id(7L)).thenReturn(Optional.of(condicion));
+        when(ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(7L)).thenReturn(List.of());
+        when(cuotas.findAllByIdCredito_IdVenta_IdCliente_IdOrderByFechaVencimientoAsc(7L)).thenReturn(List.of());
+        when(pagos.findAllByIdCuota_IdCredito_IdVenta_IdCliente_IdOrderByFechaPagoEfectivoDesc(7L)).thenReturn(List.of());
+        var listado = servicio.generarListadoCorteTienda(1L, YearMonth.of(2026, 9), LocalDate.of(2026, 9, 20), 9L);
+        assertEquals(1, listado.size());
+        assertEquals(7L, listado.getFirst().idCliente());
+    }
+
+    @Test
+    void conservaMonedaOriginalDeVentaAunqueCondicionActualSeaDistinta() {
+        Tienda tienda = new Tienda();
+        tienda.setId(1L);
+        Cliente cliente = new Cliente();
+        cliente.setId(8L);
+        cliente.setIdTienda(tienda);
+        CondicionCredito condicion = new CondicionCredito();
+        condicion.setDiaCorte(20);
+        condicion.setDiaPago(26);
+        condicion.setMonedaCredito("PEN");
+        Venta venta = new Venta();
+        venta.setId(13L);
+        venta.setFechaVenta(LocalDate.of(2026, 9, 15));
+        venta.setHoraVenta(LocalTime.of(12, 0));
+        venta.setEstadoVenta("VIGENTE");
+        venta.setMonedaVenta("USD");
+        venta.setTotalVenta(new BigDecimal("100.00"));
+        venta.setFechaCorteAsignada(java.time.LocalDateTime.of(2026, 9, 20, 18, 0));
+        when(condiciones.findByIdCliente_Id(8L)).thenReturn(Optional.of(condicion));
+        when(ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(8L)).thenReturn(List.of(venta));
+        when(creditos.findByIdVenta_Id(13L)).thenReturn(Optional.empty());
+        when(cuotas.findAllByIdCredito_IdVenta_IdCliente_IdOrderByFechaVencimientoAsc(8L)).thenReturn(List.of());
+        when(pagos.findAllByIdCuota_IdCredito_IdVenta_IdCliente_IdOrderByFechaPagoEfectivoDesc(8L)).thenReturn(List.of());
+        var reporte = servicio.construirListadoCorte(cliente, YearMonth.of(2026, 9), LocalDate.of(2026, 9, 20));
+        assertEquals("USD", reporte.moneda());
+        igual("100.00", reporte.resumen().totalComprasCiclo());
+        assertEquals(LocalDate.of(2026, 9, 20), reporte.fechaCorteActual());
+        assertNull(reporte.fechaCorteAnterior());
+    }
 }
