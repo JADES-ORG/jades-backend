@@ -29,12 +29,14 @@ class CalculoFinancieroUtilTest {
     }
 
     @Test
-    @DisplayName("Tasa ingresada como 18.0 (porcentaje) se auto-normaliza a 0.18 y produce la misma TEM 1.5%")
-    void tasaAutoNormalizada() {
-        BigDecimal tem = CalculoFinancieroUtil.tasaEfectivaMensual("NOMINAL", new BigDecimal("18.0"), "ANUAL", "MENSUAL");
+    @DisplayName("La API recibe 18% como 0.18, rechaza 18 y conserva 1.0 como 100%")
+    void soloTasasFraccionDecimales() {
+        BigDecimal tem = CalculoFinancieroUtil.tasaEfectivaMensual("NOMINAL", new BigDecimal("0.18"), "ANUAL", "MENSUAL");
         igual("0.015", tem);
-        igual("0.18", CalculoFinancieroUtil.normalizarTasa(new BigDecimal("18.0")));
         igual("0.18", CalculoFinancieroUtil.normalizarTasa(new BigDecimal("0.18")));
+        igual("1.0", CalculoFinancieroUtil.normalizarTasa(BigDecimal.ONE));
+        assertThrows(IllegalArgumentException.class, () -> CalculoFinancieroUtil.normalizarTasa(new BigDecimal("18.0")));
+        assertThrows(IllegalArgumentException.class, () -> CalculoFinancieroUtil.tasaEfectivaMensual("NOMINAL", new BigDecimal("18"), "ANUAL", "MENSUAL"));
     }
 
     @Test

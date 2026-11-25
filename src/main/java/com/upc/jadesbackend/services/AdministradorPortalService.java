@@ -40,7 +40,7 @@ public class AdministradorPortalService {
 
         Long idTienda = cliente.getIdTienda().getId();
 
-        if (!accesos.tieneAccesoActivo(idUsuarioAdmin, idTienda)) {
+        if (!accesos.tieneVinculoActivo(idUsuarioAdmin, idTienda)) {
 
             throw new NegocioException(
                     HttpStatus.NOT_FOUND,

@@ -16,6 +16,9 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "credito")
 public class Credito {
+    @Embedded
+    private CondicionesAplicadas condicionesAplicadas;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_credito", nullable = false)

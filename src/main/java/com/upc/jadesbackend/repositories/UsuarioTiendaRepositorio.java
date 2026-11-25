@@ -9,6 +9,13 @@ import java.util.List;
 public interface UsuarioTiendaRepositorio extends JpaRepository<UsuarioTienda, Long> {
     @Query("""
         select count(ut) > 0 from UsuarioTienda ut
+        where ut.idUsuario.id = :usuarioId and ut.idTienda.id = :tiendaId
+          and ut.estadoAcceso = 'ACTIVO'
+        """)
+    boolean tieneVinculoActivo(@Param("usuarioId") Long usuarioId, @Param("tiendaId") Long tiendaId);
+
+    @Query("""
+        select count(ut) > 0 from UsuarioTienda ut
         where ut.idUsuario.id = :usuarioId
           and ut.idTienda.id = :tiendaId
           and ut.estadoAcceso = 'ACTIVO'

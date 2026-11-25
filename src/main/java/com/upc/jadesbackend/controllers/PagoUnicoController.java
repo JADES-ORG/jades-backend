@@ -23,11 +23,7 @@ public class PagoUnicoController {
             @PathVariable Long idVenta,
             @AuthenticationPrincipal UsuarioPrincipal usuario) {
 
-        var resultado = servicio.generar(idVenta, usuario);
-
-        return ResponseEntity
-                .status(resultado.creado() ? HttpStatus.CREATED : HttpStatus.OK)
-                .body(resultado.resultado());
+        return ResponseEntity.ok(servicio.consultar(idVenta, usuario));
     }
 
     @GetMapping("/ventas/{idVenta}")

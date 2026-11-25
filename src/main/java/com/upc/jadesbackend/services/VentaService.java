@@ -23,6 +23,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Objects;
+import java.util.Map;
+import java.util.HashMap;
 
 
 @Service
@@ -43,6 +46,9 @@ public class VentaService {
     private final AccesoNegocioService acceso;
     private final EvaluacionCreditoService evaluacion;   // HU09
     private final AsignacionCicloService asignacionCicloService;
+
+    private final CronogramaService cronogramas;
+    private final PagoUnicoService pagosUnicos;
 
     public ResponseVentaDTO registrar(Long tienda, RequestVentaDTO dto, UsuarioPrincipal usuario, String claveIdempotencia) {
         acceso.exigir(tienda, usuario);
@@ -126,7 +132,7 @@ public class VentaService {
 
         try {
             // flush inmediato: si otra petición con la misma clave ganó la carrera, el UNIQUE lo detecta aquí.
-            return ResponseVentaDTO.de(ventas.saveAndFlush(venta));
+            ventas.saveAndFlush(venta);
         } catch (DataIntegrityViolationException e) {
             String causa = String.valueOf(e.getMostSpecificCause().getMessage());
             if (clave != null && causa.contains("uk_venta_clave_idempotencia"))
@@ -134,6 +140,14 @@ public class VentaService {
                         "Esta venta ya fue enviada y se está registrando; consulta las ventas del cliente antes de reintentar");
             throw e;
         }
+        if ("MENSUAL".equals(venta.getModalidadPago())) {
+            cronogramas.generar(venta.getId(), usuario.getId());
+            if (evaluacion.creditoUtilizado(cliente.getId()).compareTo(condicion.getLimiteCredito()) > 0)
+                throw new NegocioException(HttpStatus.CONFLICT, "El capital con la gracia supera el límite de crédito");
+        } else {
+            pagosUnicos.generar(venta.getId(), usuario);
+        }
+        return ResponseVentaDTO.de(venta);
     }
 
     @Transactional(readOnly = true)
@@ -154,6 +168,8 @@ public class VentaService {
 
     // Reglas del negocio
     private void validarCuotas(RequestVentaDTO dto) {
+        if ("UNICO".equals(dto.modalidadPago()) && dto.graciaAdicional() != null && dto.graciaAdicional() != 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "El pago único no admite meses de gracia adicionales");
         if ("UNICO".equals(dto.modalidadPago()) && dto.numeroCuotas() != 1)
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La modalidad UNICO se paga en una sola cuota");
     }
@@ -180,9 +196,28 @@ public class VentaService {
 
     private ResponseVentaDTO repetirRespuesta(Venta previa, Long tienda, RequestVentaDTO dto) {
         boolean mismaOperacion = previa.getIdCliente().getIdTienda().getId().equals(tienda)
-                && previa.getIdCliente().getId().equals(dto.idCliente());
+                && previa.getIdCliente().getId().equals(dto.idCliente())
+                && Objects.equals(previa.getModalidadPago(), dto.modalidadPago())
+                && Objects.equals(previa.getNumeroCuotas(), dto.numeroCuotas())
+                && Objects.equals(previa.getGraciaAdicional(), dto.graciaAdicional() == null ? 0 : dto.graciaAdicional())
+                && mismosDetalles(previa, dto);
         if (!mismaOperacion)
             throw new NegocioException(HttpStatus.CONFLICT, "La Idempotency-Key ya se usó para otra venta");
         return ResponseVentaDTO.de(previa);
+    }
+
+    private boolean mismosDetalles(Venta venta, RequestVentaDTO dto) {
+        if (venta.getDetalles().size() != dto.detalles().size()) return false;
+        Map<Long, BigDecimal> cantidades = new HashMap<>();
+        for (DetalleVenta detalle : venta.getDetalles()) {
+            if (cantidades.put(detalle.getIdProducto().getId(), detalle.getCantidad()) != null) return false;
+        }
+        Set<Long> vistos = new HashSet<>();
+        for (RequestVentaDTO.Detalle detalle : dto.detalles()) {
+            BigDecimal cantidad = cantidades.get(detalle.idProducto());
+            if (!vistos.add(detalle.idProducto()) || cantidad == null || detalle.cantidad() == null
+                    || cantidad.compareTo(detalle.cantidad()) != 0) return false;
+        }
+        return true;
     }
 }

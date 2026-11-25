@@ -33,7 +33,8 @@ class GestionCatalogoTest {
 
     @Test void desactivarClienteConservaRegistroYVinculoDeUsuario() {
         var repo = mock(ClienteRepositorio.class);
-        var servicio = new ClienteService(repo, mock(AccesoNegocioService.class));
+        var servicio = new ClienteService(repo, mock(AccesoNegocioService.class), mock(UsuarioRepositorio.class),
+                mock(org.springframework.security.crypto.password.PasswordEncoder.class));
         var c = new Cliente(); c.setId(2L); var usuario = new Usuario(); c.setIdUsuario(usuario);
         when(repo.findByIdAndIdTienda_Id(2L, 1L)).thenReturn(Optional.of(c));
         when(repo.save(c)).thenReturn(c);

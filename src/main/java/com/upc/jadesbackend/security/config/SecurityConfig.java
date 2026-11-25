@@ -1,5 +1,10 @@
 package com.upc.jadesbackend.security.config;
 
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.config.Customizer;
 import com.upc.jadesbackend.security.filters.JwtBearerFilter;
 import com.upc.jadesbackend.security.services.UsuarioDetailsService;
 import com.upc.jadesbackend.security.util.JwtUtil;
@@ -24,6 +29,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
     @Bean
+    public UrlBasedCorsConfigurationSource corsConfigurationSource(
+            @Value("${JADES_FRONTEND_ORIGIN:http://localhost:5173}") String origin) {
+        var cors = new CorsConfiguration();
+        cors.setAllowedOrigins(List.of(origin));
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
+        var source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", cors);
+        return source;
+    }
+
+    @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
@@ -38,7 +55,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtUtil jwt, UsuarioDetailsService usuarios)
             throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.cors(Customizer.withDefaults()).csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)

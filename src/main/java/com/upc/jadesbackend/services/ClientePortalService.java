@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
         import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -24,19 +25,21 @@ public class ClientePortalService {
     private final CreditoRepositorio creditos;
     private final CuotaRepositorio cuotas;
     private final PagoRepositorio pagos;
+    private final MoraService moraService;
 
     public ClientePortalService(
             ClienteRepositorio clientes,
             VentaRepositorio ventas,
             CreditoRepositorio creditos,
             CuotaRepositorio cuotas,
-            PagoRepositorio pagos) {
+            PagoRepositorio pagos, MoraService moraService) {
 
         this.clientes = clientes;
         this.ventas = ventas;
         this.creditos = creditos;
         this.cuotas = cuotas;
         this.pagos = pagos;
+        this.moraService = moraService;
     }
 
     @Transactional(readOnly = true)
@@ -73,7 +76,7 @@ public class ClientePortalService {
                     credito == null ? null : credito.getCodigoCredito());
         }).toList();
 
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(ZoneId.of("America/Lima"));
         List<ResponseCuentaCorrienteDTO.Obligacion> obligacionesDTO = new ArrayList<>();
         BigDecimal capitalPendiente = CERO;
         BigDecimal interesPendiente = CERO;
@@ -86,7 +89,9 @@ public class ClientePortalService {
             boolean vencida = !pagada && cuota.getFechaVencimiento().isBefore(hoy);
             BigDecimal capital = nvl(cuota.getAmortizacion());
             BigDecimal interes = nvl(cuota.getInteresCuota());
-            BigDecimal importePendiente = pagada ? CERO : nvl(cuota.getImporte());
+            BigDecimal moraPendiente = pagada ? CERO : moraService.construirDetalleMora(
+                    cuota, cuota.getIdCredito(), cuota.getIdCredito().getIdVenta(), hoy).interesMoratorio();
+            BigDecimal importePendiente = pagada ? CERO : nvl(cuota.getImporte()).add(moraPendiente);
             if (!pagada) {
                 capitalPendiente = capitalPendiente.add(capital);
                 interesPendiente = interesPendiente.add(interes);
@@ -98,7 +103,7 @@ public class ClientePortalService {
                     cuota.getId(), cuota.getIdCredito().getId(), cuota.getIdCredito().getIdVenta().getId(),
                     cuota.getNumeroCuota(), cuota.getFechaVencimiento(), cuota.getEstadoCuota(), vencida,
                     capital, interes, nvl(cuota.getImporte()), importePendiente,
-                    null, cuota.getIdCredito().getIdVenta().getMonedaVenta()));
+                    moraPendiente, cuota.getIdCredito().getIdVenta().getMonedaVenta()));
         }
 
         List<ResponseCuentaCorrienteDTO.PagoRegistrado> pagosDTO = listaPagos.stream().map(p ->
