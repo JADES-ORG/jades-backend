@@ -1,6 +1,7 @@
 package com.upc.jadesbackend.services;
 
 import com.upc.jadesbackend.dtos.ResponseCuentaCorrienteDTO;
+import com.upc.jadesbackend.dtos.ResponseVentaDTO;
 import com.upc.jadesbackend.entities.*;
         import com.upc.jadesbackend.exceptions.NegocioException;
 import com.upc.jadesbackend.repositories.*;
@@ -110,7 +111,11 @@ public class ClientePortalService {
                 new ResponseCuentaCorrienteDTO.PagoRegistrado(p.getId(), p.getIdCuota().getId(),
                         p.getFechaPagoEfectivo(), p.getFechaCancelacion(), p.getMedioPago(),
                         p.getDiasAtraso(), nvl(p.getCapitalPagado()), nvl(p.getInteresPagado()),
-                        nvl(p.getMoraPagada()), nvl(p.getTotalExigible()), p.getEstadoPago())).toList();
+                        nvl(p.getMoraPagada()), nvl(p.getTotalExigible()), p.getEstadoPago(),
+                        p.getIdCuota().getIdCredito().getIdVenta().getId(), p.getIdCuota().getNumeroCuota(),
+                        p.getIdCuota().getIdCredito().getIdVenta().getFechaVenta(), p.getIdCuota().getFechaVencimiento(),
+                        p.getIdCuota().getIdCredito().getIdVenta().getMonedaVenta(),
+                        p.getIdCuota().getIdCredito().getIdVenta().getDetalles().stream().map(ResponseVentaDTO.Detalle::de).toList())).toList();
 
         BigDecimal totalCompras = listaVentas.stream().map(Venta::getTotalVenta)
                 .map(ClientePortalService::nvl).reduce(CERO, BigDecimal::add);

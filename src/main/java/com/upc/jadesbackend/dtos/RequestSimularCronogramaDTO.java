@@ -19,6 +19,6 @@ public record RequestSimularCronogramaDTO(
         @NotNull @Min(1) @Max(31) Integer diaCorte,
         LocalTime horaCorte,
         @NotNull @Min(1) @Max(31) Integer diaPago,
-        @Min(0) Integer graciaAdicional,
+        @Min(0) @Max(value = 0, message = "No se permiten meses adicionales de gracia") Integer graciaAdicional,
         @Pattern(regexp = "PEN|USD", message = "debe ser PEN o USD") String moneda
 ) {}

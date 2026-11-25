@@ -34,5 +34,11 @@ public record ResponseCronogramaDTO(
             BigDecimal amortizacion,
             BigDecimal cuota,
             BigDecimal saldoFinal,
-            String estado) {}
+            String estado,
+            Long idCuota,
+            LocalDate fechaPagoEfectivo,
+            BigDecimal capitalPagado,
+            BigDecimal interesPagado,
+            BigDecimal moraPagada,
+            BigDecimal totalPagado) {}
 }

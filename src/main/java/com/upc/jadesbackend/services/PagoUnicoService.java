@@ -30,6 +30,7 @@ public class PagoUnicoService {
     private final VentaRepositorio ventas;
     private final CreditoRepositorio creditos;
     private final CuotaRepositorio cuotas;
+    private final PagoRepositorio pagos;
     private final CondicionCreditoRepositorio condiciones;
     private final TasaInteresRepositorio tasasInteres;
     private final TasaMoratoriaRepositorio tasasMora;
@@ -214,6 +215,8 @@ public class PagoUnicoService {
                 Math.toIntExact(dias)
         );
 
+        Pago pago = pagos.findByIdCuota_Id(cuota.getId()).orElse(null);
+
         return new ResponsePagoUnicoDTO(
                 venta.getId(),
                 credito.getId(),
@@ -229,7 +232,11 @@ public class PagoUnicoService {
                 tasaPeriodo,
                 cuota.getInteresCuota(),
                 cuota.getImporte(),
-                cuota.getEstadoCuota()
+                cuota.getEstadoCuota(),
+                pago == null ? null : pago.getFechaPagoEfectivo(),
+                pago == null ? null : pago.getInteresPagado(),
+                pago == null ? null : pago.getMoraPagada(),
+                pago == null ? null : pago.getTotalExigible()
         );
     }
 }

@@ -11,7 +11,7 @@ public record RequestVentaDTO(
         @NotNull Long idCliente,
         @NotBlank @Pattern(regexp = "UNICO|MENSUAL", message = "La modalidad debe ser UNICO o MENSUAL") String modalidadPago,
         @NotNull @Min(1) @Max(120) Integer numeroCuotas,
-        @Min(0) @Max(30) Integer graciaAdicional,
+        @Min(0) @Max(value = 0, message = "No se permiten meses adicionales de gracia") Integer graciaAdicional,
         @NotEmpty(message = "La venta debe tener al menos un producto o servicio")
         @Size(max = 50) List<@Valid @NotNull Detalle> detalles
 ) {

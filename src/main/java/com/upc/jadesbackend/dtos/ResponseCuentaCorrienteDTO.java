@@ -54,7 +54,13 @@ public record ResponseCuentaCorrienteDTO(
             BigDecimal interesPagado,
             BigDecimal moraPagada,
             BigDecimal totalExigible,
-            String estado) {}
+            String estado,
+            Long idVenta,
+            Integer numeroCuota,
+            LocalDate fechaCompra,
+            LocalDate fechaPagoPactada,
+            String moneda,
+            List<ResponseVentaDTO.Detalle> detalles) {}
 
     public record Resumen(
             BigDecimal totalCompras,

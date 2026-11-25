@@ -89,7 +89,25 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 - Swagger UI: http://localhost:8080/swagger-ui/index.html
 - OpenAPI JSON: http://localhost:8080/v3/api-docs
 
-### 4. Ejecutar pruebas
+### 4. Pagos y liquidación
+
+- Cada compra de pago único o cuota mensual se cancela íntegramente; compras distintas pueden pagarse por separado.
+- El pago único anticipado recalcula el interés compensatorio hasta la fecha efectiva con la tasa histórica. Desde el vencimiento se conserva el importe pactado y se añade mora si corresponde.
+- En créditos mensuales se paga la cuota pendiente más antigua. Se permite adelantarla dentro de su mes de vencimiento, por su importe programado.
+- Desde el mes de la primera cuota, se puede liquidar todo el crédito: las cuotas vencidas y las del mes incluyen interés pactado y mora cuando corresponda; las cuotas de meses futuros se cancelan por su amortización de capital.
+- No se permiten meses adicionales de gracia para ventas nuevas o simulaciones. La gracia total obligatoria y los cronogramas históricos se conservan.
+- El historial de cortes distingue obligaciones pendientes de pagos registrados; incluye los pagos del ciclo pactado o del mes del pago efectivo. Sus totales de pagos no son un reporte de ingresos acumulable entre cortes.
+
+| Método | Endpoint | Uso |
+|---|---|---|
+| GET | `/api/v1/pagos/cuotas/{idCuota}/importe?fechaPagoEfectivo=AAAA-MM-DD` | Consultar importe exacto de una obligación |
+| POST | `/api/v1/pagos/cuotas/{idCuota}` | Registrar el pago completo de esa obligación |
+| GET | `/api/v1/pagos/creditos/{idCredito}/liquidacion?fechaPagoEfectivo=AAAA-MM-DD` | Cotizar la liquidación de todas las cuotas pendientes |
+| POST | `/api/v1/pagos/creditos/{idCredito}/liquidacion` | Registrar la liquidación total en una transacción |
+
+Los POST reciben `monto`, `fechaPagoEfectivo` y `medioPago`. Las consultas usan la fecha actual si no se indica otra. El administrador registra pagos y el cliente solo consulta sus propios datos. El cronograma original permanece intacto; los importes efectivamente cobrados se consultan en los pagos.
+
+### 5. Ejecutar pruebas
 Las pruebas funcionales y financieras se realizarán manualmente mediante Swagger o Postman al finalizar las correcciones.
 
 ---

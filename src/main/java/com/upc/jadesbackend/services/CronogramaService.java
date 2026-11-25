@@ -35,17 +35,19 @@ public class CronogramaService {
     private final VentaRepositorio ventas;
     private final CreditoRepositorio creditos;
     private final CuotaRepositorio cuotas;
+    private final PagoRepositorio pagos;
     private final CondicionCreditoRepositorio condiciones;
     private final TasaInteresRepositorio tasasInteres;
     private final TasaMoratoriaRepositorio tasasMora;
     private final UsuarioTiendaRepositorio accesos;
 
     public CronogramaService(VentaRepositorio ventas, CreditoRepositorio creditos, CuotaRepositorio cuotas,
-                             CondicionCreditoRepositorio condiciones, TasaInteresRepositorio tasasInteres,
+                             PagoRepositorio pagos, CondicionCreditoRepositorio condiciones, TasaInteresRepositorio tasasInteres,
                              TasaMoratoriaRepositorio tasasMora, UsuarioTiendaRepositorio accesos) {
         this.ventas = ventas;
         this.creditos = creditos;
         this.cuotas = cuotas;
+        this.pagos = pagos;
         this.condiciones = condiciones;
         this.tasasInteres = tasasInteres;
         this.tasasMora = tasasMora;
@@ -70,9 +72,11 @@ public class CronogramaService {
     // ------------------------------------------------------------------
 
     public ResponseCronogramaDTO simular(RequestSimularCronogramaDTO s) {
+        if (s.graciaAdicional() != null && s.graciaAdicional() != 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "No se permiten meses adicionales de gracia");
         BigDecimal tem = tasaMensual(s.tipoTasa(), s.valorTasa(), s.periodoTasa(), s.capitalizacionTasa());
         Plan plan = construirPlan(s.monto(), tem, s.numeroCuotas(), s.fechaVenta(), s.horaVenta(),
-                s.diaCorte(), s.horaCorte(), s.diaPago(), nvl(s.graciaAdicional()));
+                s.diaCorte(), s.horaCorte(), s.diaPago(), 0);
         String moneda = s.moneda() == null ? "PEN" : s.moneda();
         return desdePlan(null, null, null, moneda, plan);
     }
@@ -248,7 +252,7 @@ public class CronogramaService {
         ResultadoCronograma r = plan.cronograma();
         List<ResponseCronogramaDTO.CuotaCronograma> filas = r.filas().stream()
                 .map(f -> new ResponseCronogramaDTO.CuotaCronograma(f.numeroCuota(), plan.vencimiento(f.numeroCuota()),
-                        f.saldoInicial(), f.interes(), f.amortizacion(), f.cuota(), f.saldoFinal(), ESTADO_CUOTA_INICIAL))
+                        f.saldoInicial(), f.interes(), f.amortizacion(), f.cuota(), f.saldoFinal(), ESTADO_CUOTA_INICIAL, null, null, null, null, null, null))
                 .toList();
         BigDecimal capitalVenta = CalculoFinancieroUtil.redondearMoneda(plan.capitalVenta());
 
@@ -261,10 +265,17 @@ public class CronogramaService {
     private ResponseCronogramaDTO desdeEntidades(Venta venta, Credito credito) {
         List<Cuota> lista = cuotas.findAllByIdCredito_IdOrderByNumeroCuotaAsc(credito.getId());
         List<ResponseCronogramaDTO.CuotaCronograma> filas = lista.stream()
-                .map(c -> new ResponseCronogramaDTO.CuotaCronograma(c.getNumeroCuota(), c.getFechaVencimiento(),
-                        c.getSaldoInicial(), c.getInteresCuota(), c.getAmortizacion(), c.getImporte(),
-                        c.getSaldoFinal(), c.getEstadoCuota()))
-                .toList();
+                .map(c -> {
+                    Pago pago = pagos.findByIdCuota_Id(c.getId()).orElse(null);
+                    return new ResponseCronogramaDTO.CuotaCronograma(c.getNumeroCuota(), c.getFechaVencimiento(),
+                            c.getSaldoInicial(), c.getInteresCuota(), c.getAmortizacion(), c.getImporte(),
+                            c.getSaldoFinal(), c.getEstadoCuota(), c.getId(),
+                            pago == null ? null : pago.getFechaPagoEfectivo(),
+                            pago == null ? null : pago.getCapitalPagado(),
+                            pago == null ? null : pago.getInteresPagado(),
+                            pago == null ? null : pago.getMoraPagada(),
+                            pago == null ? null : pago.getTotalExigible());
+                }).toList();
 
         CondicionesAplicadas pactadas = credito.getCondicionesAplicadas();
         LocalDate finGracia = pactadas == null ? null : pactadas.getFinGracia();

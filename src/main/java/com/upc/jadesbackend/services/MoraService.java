@@ -112,11 +112,11 @@ public class MoraService {
                     p.getDiasAtraso() == null ? 0L : p.getDiasAtraso().longValue(),
                     p.getDiasAtraso() != null && p.getDiasAtraso() > 0,
                     true,
-                    cuota.getImporte(),
+                    p.getCapitalPagado().add(p.getInteresPagado()),
                     tasaMoraDiaria,
                     p.getMoraPagada() == null ? BigDecimal.ZERO : p.getMoraPagada(),
                     p.getTotalExigible() == null ? cuota.getImporte() : p.getTotalExigible(),
-                    cuota.getEstadoCuota(),
+                    "PAGADA",
                     moneda
             );
         }
