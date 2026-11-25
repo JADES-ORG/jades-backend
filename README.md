@@ -41,7 +41,7 @@ Documentación adicional:
 
 ## Convenciones de datos
 
-Las tasas se reciben como **fracciones decimales**: una tasa del 18 % se envía como `0.18`, no como `18`. El frontend debe dividir entre 100 si muestra porcentajes. Las tasas históricas guardadas como números mayores que `1` requieren revisión y migración supervisada; no se reinterpretan automáticamente.
+Las tasas se reciben como **fracciones decimales**: 18 % = `0.18`, 125 % = `1.25`. Las tasas pactadas deben ser mayores a cero y no tienen un máximo de negocio; se conserva la precisión técnica de la base de datos. El frontend debe dividir entre 100 si muestra porcentajes. Los valores históricos no se reinterpretan automáticamente.
 
 La moneda `PEN` o `USD` se configura una sola vez para cada cliente. En la edición de condiciones debe mostrarse como solo lectura; el backend rechaza el cambio.
 
@@ -90,10 +90,7 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 - OpenAPI JSON: http://localhost:8080/v3/api-docs
 
 ### 4. Ejecutar pruebas
-```bash
-# Solo el motor financiero (no necesita base de datos)
-.\mvnw.cmd test -Dtest=CalculoFinancieroUtilTest
-```
+Las pruebas funcionales y financieras se realizarán manualmente mediante Swagger o Postman al finalizar las correcciones.
 
 ---
 

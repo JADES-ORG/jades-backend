@@ -17,7 +17,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Map;
 
@@ -96,8 +95,10 @@ public class CondicionCreditoService {
     // HU-07 Reglas de negocio adicionales
 
     void validarReglas(RequestCondicionCrediticiaDTO dto) {
-        if (dto.tasaInteres().compareTo(BigDecimal.ONE) > 0 || dto.tasaMoratoria().compareTo(BigDecimal.ONE) > 0)
-            throw new NegocioException(HttpStatus.BAD_REQUEST, "Las tasas deben ser fracciones decimales: 18% = 0.18");
+        if (dto.tasaInteres() == null || dto.tasaInteres().signum() <= 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "La tasa de interés debe ser mayor a cero");
+        if (dto.tasaMoratoria() == null || dto.tasaMoratoria().signum() <= 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "La tasa moratoria debe ser mayor a cero");
         if (dto.diaCorte().equals(dto.diaPago()))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El día de pago debe ser distinto al día de corte");
         validarTasa("compensatoria", dto.tipoTasa(), dto.periodoTasa(), dto.capitalizacionTasa());

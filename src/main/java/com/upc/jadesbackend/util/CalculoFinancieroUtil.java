@@ -86,17 +86,9 @@ public final class CalculoFinancieroUtil {
     // Tasas
     // ------------------------------------------------------------------
 
-    /**
-     * Las tasas de la API se expresan como fracción decimal: 18% = 0.18.
-     * No se convierten porcentajes automáticamente: 18.0 es inválido; 1.0 significa 100%.
-     */
     public static BigDecimal normalizarTasa(BigDecimal valorTasa) {
-        if (valorTasa == null) {
-            return BigDecimal.ZERO;
-        }
-        validarNoNegativo(valorTasa, "valor de la tasa");
-        if (valorTasa.compareTo(BigDecimal.ONE) > 0) {
-            throw new IllegalArgumentException("La tasa debe ser una fracción decimal (18% = 0.18) no mayor que 1.0");
+        if (valorTasa == null || valorTasa.signum() <= 0) {
+            throw new IllegalArgumentException("La tasa debe ser mayor a cero");
         }
         return valorTasa;
     }

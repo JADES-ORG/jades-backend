@@ -10,7 +10,7 @@ import java.time.LocalTime;
 public record RequestSimularCronogramaDTO(
         @NotNull @DecimalMin(value = "0.01", message = "debe ser mayor a cero") BigDecimal monto,
         @NotBlank @Pattern(regexp = "(?i)NOMINAL|EFECTIVA", message = "debe ser NOMINAL o EFECTIVA") String tipoTasa,
-        @NotNull @DecimalMin(value = "0", message = "no puede ser negativa") BigDecimal valorTasa,
+        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa debe ser mayor a cero") BigDecimal valorTasa,
         @NotBlank String periodoTasa,
         String capitalizacionTasa,
         @NotNull @Min(1) @Max(360) Integer numeroCuotas,
