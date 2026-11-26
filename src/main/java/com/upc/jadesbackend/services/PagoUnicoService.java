@@ -234,6 +234,7 @@ public class PagoUnicoService {
                 cuota.getImporte(),
                 cuota.getEstadoCuota(),
                 pago == null ? null : pago.getFechaPagoEfectivo(),
+                pago == null ? null : pago.getHoraPagoEfectivo(),
                 pago == null ? null : pago.getInteresPagado(),
                 pago == null ? null : pago.getMoraPagada(),
                 pago == null ? null : pago.getTotalExigible()

@@ -2,6 +2,7 @@ package com.upc.jadesbackend.dtos;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 public record ResponseCuentaCorrienteDTO(
@@ -47,6 +48,7 @@ public record ResponseCuentaCorrienteDTO(
             Long idPago,
             Long idCuota,
             LocalDate fechaPago,
+            LocalTime horaPagoEfectivo,
             LocalDate fechaCancelacion,
             String medioPago,
             Integer diasAtraso,

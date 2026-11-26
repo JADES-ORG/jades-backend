@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,8 +29,9 @@ public class PagoController {
     public ResponseLiquidacionDTO consultarImporte(
             @PathVariable Long idCuota,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaPagoEfectivo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaPagoEfectivo,
             @AuthenticationPrincipal UsuarioPrincipal usuario) {
-        return servicio.consultarImporte(idCuota, fechaPagoEfectivo, usuario);
+        return servicio.consultarImporte(idCuota, fechaPagoEfectivo, horaPagoEfectivo, usuario);
     }
 
     @PostMapping("/cuotas/{idCuota}")
@@ -48,8 +50,9 @@ public class PagoController {
     public ResponseLiquidacionDTO consultarLiquidacion(
             @PathVariable Long idCredito,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaPagoEfectivo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaPagoEfectivo,
             @AuthenticationPrincipal UsuarioPrincipal usuario) {
-        return servicio.consultarLiquidacion(idCredito, fechaPagoEfectivo, usuario);
+        return servicio.consultarLiquidacion(idCredito, fechaPagoEfectivo, horaPagoEfectivo, usuario);
     }
 
     @PostMapping("/creditos/{idCredito}/liquidacion")

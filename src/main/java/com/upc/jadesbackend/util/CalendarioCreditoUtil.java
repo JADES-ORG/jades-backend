@@ -1,6 +1,13 @@
 package com.upc.jadesbackend.util;
 
+import com.upc.jadesbackend.entities.CondicionesAplicadas;
+import com.upc.jadesbackend.entities.Credito;
+import com.upc.jadesbackend.entities.Cuota;
+import com.upc.jadesbackend.entities.Venta;
+
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.LocalTime;
 import java.time.YearMonth;
 
@@ -45,6 +52,42 @@ public final class CalendarioCreditoUtil {
             mes = mes.plusMonths(1);
         }
         return fechaEnMes(mes.plusMonths(Math.max(0, mesesGraciaAdicional)), diaPago);
+    }
+
+    public static LocalDateTime corteHistoricoVenta(Venta venta, Credito credito) {
+        if (venta.getFechaCorteAsignada() != null) return venta.getFechaCorteAsignada();
+        return credito != null && credito.getFechaCorte() != null
+                ? LocalDateTime.ofInstant(credito.getFechaCorte(), ZoneId.of("America/Lima")) : null;
+    }
+
+    public static YearMonth cicloHistoricoCuota(Cuota cuota) {
+        Credito credito = cuota.getIdCredito();
+        Venta venta = credito.getIdVenta();
+        LocalDateTime corte = corteHistoricoVenta(venta, credito);
+        if ("UNICO".equals(venta.getModalidadPago()) && corte != null) return YearMonth.from(corte);
+        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
+        YearMonth vencimiento = YearMonth.from(cuota.getFechaVencimiento());
+        if (pacto != null && pacto.getDiaPago() != null && pacto.getDiaCorte() != null)
+            return pacto.getDiaPago() <= pacto.getDiaCorte() ? vencimiento.minusMonths(1) : vencimiento;
+        if (corte == null || credito.getFechaPrimerPago() == null) return null;
+        int meses = "MENSUAL".equals(venta.getModalidadPago())
+                ? 1 + (venta.getGraciaAdicional() == null ? 0 : venta.getGraciaAdicional()) : 0;
+        YearMonth corteOriginal = YearMonth.from(corte);
+        YearMonth pagoOriginal = YearMonth.from(credito.getFechaPrimerPago()).minusMonths(meses);
+        if (pagoOriginal.equals(corteOriginal)) return vencimiento;
+        if (pagoOriginal.equals(corteOriginal.plusMonths(1))) return vencimiento.minusMonths(1);
+        return null;
+    }
+
+    public static LocalDateTime corteHistoricoCuota(Cuota cuota) {
+        Credito credito = cuota.getIdCredito();
+        Venta venta = credito.getIdVenta();
+        LocalDateTime corte = corteHistoricoVenta(venta, credito);
+        if ("UNICO".equals(venta.getModalidadPago())) return corte;
+        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
+        YearMonth ciclo = cicloHistoricoCuota(cuota);
+        if (corte == null || pacto == null || pacto.getDiaCorte() == null || ciclo == null) return null;
+        return LocalDateTime.of(fechaEnMes(ciclo, pacto.getDiaCorte()), corte.toLocalTime());
     }
 
     public static LocalDate fechaVencimiento(LocalDate fechaFinGracia, int numeroCuota, int diaPago) {
