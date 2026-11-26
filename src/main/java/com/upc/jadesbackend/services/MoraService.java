@@ -110,13 +110,13 @@ public class MoraService {
                     cuota.getFechaVencimiento(),
                     p.getFechaPagoEfectivo(),
                     p.getDiasAtraso() == null ? 0L : p.getDiasAtraso().longValue(),
-                    p.getMoraPagada() != null && p.getMoraPagada().signum() > 0,
+                    p.getDiasAtraso() != null && p.getDiasAtraso() > 0,
                     true,
-                    cuota.getImporte(),
+                    p.getCapitalPagado().add(p.getInteresPagado()),
                     tasaMoraDiaria,
                     p.getMoraPagada() == null ? BigDecimal.ZERO : p.getMoraPagada(),
                     p.getTotalExigible() == null ? cuota.getImporte() : p.getTotalExigible(),
-                    cuota.getEstadoCuota(),
+                    "PAGADA",
                     moneda
             );
         }
@@ -126,7 +126,7 @@ public class MoraService {
             throw new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria histórica de este crédito");
         ResultadoMora resultadoMora = CalculoFinancieroUtil.calcularMora(cuota.getImporte(), tasaMoraDiaria == null ? BigDecimal.ZERO : tasaMoraDiaria, dias);
 
-        boolean enMora = dias > 0 && resultadoMora.interesMoratorio().signum() > 0;
+        boolean enMora = dias > 0;
         String estadoCuota = enMora ? "EN_MORA" : "PROGRAMADA";
 
         return new ResponseCalculoMoraDTO(

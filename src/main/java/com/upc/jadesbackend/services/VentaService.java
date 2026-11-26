@@ -92,7 +92,7 @@ public class VentaService {
         venta.setHoraVenta(ahora.toLocalTime().truncatedTo(ChronoUnit.SECONDS));
         venta.setModalidadPago(dto.modalidadPago());
         venta.setNumeroCuotas(dto.numeroCuotas());
-        venta.setGraciaAdicional(dto.graciaAdicional() == null ? 0 : dto.graciaAdicional());
+        venta.setGraciaAdicional(0);
         venta.setMonedaVenta(condicion.getMonedaCredito());
         venta.setEstadoVenta("VIGENTE");
         AsignacionCicloService.ResultadoCiclo resultado =
@@ -168,8 +168,8 @@ public class VentaService {
 
     // Reglas del negocio
     private void validarCuotas(RequestVentaDTO dto) {
-        if ("UNICO".equals(dto.modalidadPago()) && dto.graciaAdicional() != null && dto.graciaAdicional() != 0)
-            throw new NegocioException(HttpStatus.BAD_REQUEST, "El pago único no admite meses de gracia adicionales");
+        if (dto.graciaAdicional() != null && dto.graciaAdicional() != 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "No se permiten meses adicionales de gracia");
         if ("UNICO".equals(dto.modalidadPago()) && dto.numeroCuotas() != 1)
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La modalidad UNICO se paga en una sola cuota");
     }

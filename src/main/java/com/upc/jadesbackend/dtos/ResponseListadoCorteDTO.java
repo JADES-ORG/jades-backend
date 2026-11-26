@@ -3,6 +3,7 @@ package com.upc.jadesbackend.dtos;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -24,7 +25,8 @@ public record ResponseListadoCorteDTO(
         String moneda,
         ResumenCorte resumen,
         List<CompraCiclo> compras,
-        List<ObligacionExigible> obligaciones
+        List<ObligacionExigible> obligaciones,
+        List<PagoRegistrado> pagosRegistrados
 ) {
     public record ResumenCorte(
             BigDecimal totalComprasCiclo,
@@ -34,7 +36,9 @@ public record ResponseListadoCorteDTO(
             BigDecimal totalExigible,
             int cantidadCompras,
             int cantidadObligaciones,
-            int cantidadCuotasEnMora
+            int cantidadCuotasEnMora,
+            BigDecimal totalPagadoListado,
+            int cantidadPagadas
     ) {}
 
     public record CompraCiclo(
@@ -46,7 +50,8 @@ public record ResponseListadoCorteDTO(
             BigDecimal totalVenta,
             Long idCredito,
             String codigoCredito,
-            BigDecimal interesEstimado
+            BigDecimal interesEstimado,
+            List<ResponseVentaDTO.Detalle> detalles
     ) {}
 
     public record ObligacionExigible(
@@ -63,6 +68,33 @@ public record ResponseListadoCorteDTO(
             BigDecimal moraCalculada,
             BigDecimal totalPagar,
             String estadoCuota,
-            boolean enMora
+            boolean enMora,
+            LocalDateTime fechaCorteObligacion,
+            List<ResponseVentaDTO.Detalle> detalles
+    ) {}
+
+    public record PagoRegistrado(
+            Long idPago,
+            Long idCuota,
+            Long idCredito,
+            Long idVenta,
+            String codigoCredito,
+            String modalidadPago,
+            Integer numeroCuota,
+            LocalDate fechaCompra,
+            LocalDateTime fechaCorteObligacion,
+            LocalDate fechaPagoPactada,
+            LocalDate fechaPagoEfectivo,
+            String medioPago,
+            Integer diasAtraso,
+            BigDecimal capitalPagado,
+            BigDecimal interesPagado,
+            BigDecimal moraPagada,
+            BigDecimal totalPagado,
+            BigDecimal saldoCreditoActual,
+            BigDecimal saldoCreditoAlCierreFechaPago,
+            String moneda,
+            String estadoCuota,
+            List<ResponseVentaDTO.Detalle> detalles
     ) {}
 }

@@ -41,7 +41,7 @@ Documentación adicional:
 
 ## Convenciones de datos
 
-Las tasas se reciben como **fracciones decimales**: una tasa del 18 % se envía como `0.18`, no como `18`. El frontend debe dividir entre 100 si muestra porcentajes. Las tasas históricas guardadas como números mayores que `1` requieren revisión y migración supervisada; no se reinterpretan automáticamente.
+Las tasas se reciben como **fracciones decimales**: 18 % = `0.18`, 125 % = `1.25`. Las tasas pactadas deben ser mayores a cero y no tienen un máximo de negocio; se conserva la precisión técnica de la base de datos. El frontend debe dividir entre 100 si muestra porcentajes. Los valores históricos no se reinterpretan automáticamente.
 
 La moneda `PEN` o `USD` se configura una sola vez para cada cliente. En la edición de condiciones debe mostrarse como solo lectura; el backend rechaza el cambio.
 
@@ -89,11 +89,26 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 - Swagger UI: http://localhost:8080/swagger-ui/index.html
 - OpenAPI JSON: http://localhost:8080/v3/api-docs
 
-### 4. Ejecutar pruebas
-```bash
-# Solo el motor financiero (no necesita base de datos)
-.\mvnw.cmd test -Dtest=CalculoFinancieroUtilTest
-```
+### 4. Pagos y liquidación
+
+- Cada compra de pago único o cuota mensual se cancela íntegramente; compras distintas pueden pagarse por separado.
+- El pago único anticipado recalcula el interés compensatorio hasta la fecha efectiva con la tasa histórica. Desde el vencimiento se conserva el importe pactado y se añade mora si corresponde.
+- En créditos mensuales se paga la cuota pendiente más antigua. Se permite adelantarla dentro de su mes de vencimiento, por su importe programado.
+- Desde el mes de la primera cuota, se puede liquidar todo el crédito: las cuotas vencidas y las del mes incluyen interés pactado y mora cuando corresponda; las cuotas de meses futuros se cancelan por su amortización de capital.
+- No se permiten meses adicionales de gracia para ventas nuevas o simulaciones. La gracia total obligatoria y los cronogramas históricos se conservan.
+- El historial de cortes distingue obligaciones pendientes de pagos registrados; incluye los pagos del ciclo pactado o del mes del pago efectivo. Sus totales de pagos no son un reporte de ingresos acumulable entre cortes.
+
+| Método | Endpoint | Uso |
+|---|---|---|
+| GET | `/api/v1/pagos/cuotas/{idCuota}/importe?fechaPagoEfectivo=AAAA-MM-DD` | Consultar importe exacto de una obligación |
+| POST | `/api/v1/pagos/cuotas/{idCuota}` | Registrar el pago completo de esa obligación |
+| GET | `/api/v1/pagos/creditos/{idCredito}/liquidacion?fechaPagoEfectivo=AAAA-MM-DD` | Cotizar la liquidación de todas las cuotas pendientes |
+| POST | `/api/v1/pagos/creditos/{idCredito}/liquidacion` | Registrar la liquidación total en una transacción |
+
+Los POST reciben `monto`, `fechaPagoEfectivo` y `medioPago`. Las consultas usan la fecha actual si no se indica otra. El administrador registra pagos y el cliente solo consulta sus propios datos. El cronograma original permanece intacto; los importes efectivamente cobrados se consultan en los pagos.
+
+### 5. Ejecutar pruebas
+Las pruebas funcionales y financieras se realizarán manualmente mediante Swagger o Postman al finalizar las correcciones.
 
 ---
 

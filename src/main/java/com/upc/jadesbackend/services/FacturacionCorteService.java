@@ -5,6 +5,8 @@ import com.upc.jadesbackend.dtos.ResponseListadoCorteDTO;
 import com.upc.jadesbackend.dtos.ResponseListadoCorteDTO.CompraCiclo;
 import com.upc.jadesbackend.dtos.ResponseListadoCorteDTO.ObligacionExigible;
 import com.upc.jadesbackend.dtos.ResponseListadoCorteDTO.ResumenCorte;
+import com.upc.jadesbackend.dtos.ResponseListadoCorteDTO.PagoRegistrado;
+import com.upc.jadesbackend.dtos.ResponseVentaDTO;
 import com.upc.jadesbackend.entities.*;
 import com.upc.jadesbackend.exceptions.NegocioException;
 import com.upc.jadesbackend.repositories.*;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -164,7 +167,7 @@ public class FacturacionCorteService {
         Set<LocalTime> horasCorteHistoricas = new HashSet<>();
 
         for (Venta v : todasVentas) {
-            if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta())) {
+            if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta()) || v.getFechaVenta().isAfter(fechaRef)) {
                 continue;
             }
 
@@ -204,7 +207,8 @@ public class FacturacionCorteService {
                         v.getTotalVenta(),
                         idCredito,
                         codigoCredito,
-                        interesEstimado
+                        interesEstimado,
+                        detallesVenta(v)
                 ));
                 totalCompras = totalCompras.add(v.getTotalVenta());
             }
@@ -214,13 +218,15 @@ public class FacturacionCorteService {
         List<Cuota> todasCuotas = cuotas.findAllByIdCredito_IdVenta_IdCliente_IdOrderByFechaVencimientoAsc(cliente.getId());
         List<Pago> todosPagos = pagos.findAllByIdCuota_IdCredito_IdVenta_IdCliente_IdOrderByFechaPagoEfectivoDesc(cliente.getId());
 
-        Set<Long> cuotasPagadasIds = new HashSet<>();
+        Map<Long, Pago> pagosPorCuota = new HashMap<>();
         for (Pago p : todosPagos) {
             if (p.getIdCuota() != null && p.getFechaPagoEfectivo() != null
                     && !p.getFechaPagoEfectivo().isAfter(fechaRef)) {
-                cuotasPagadasIds.add(p.getIdCuota().getId());
+                pagosPorCuota.put(p.getIdCuota().getId(), p);
             }
         }
+        List<PagoRegistrado> historial = new ArrayList<>();
+        BigDecimal totalPagadoListado = BigDecimal.ZERO;
 
         List<ObligacionExigible> obligaciones = new ArrayList<>();
         BigDecimal totalCapital = BigDecimal.ZERO;
@@ -231,16 +237,35 @@ public class FacturacionCorteService {
         Set<LocalDate> vencimientosDelCiclo = new HashSet<>();
 
         for (Cuota c : todasCuotas) {
-            if (cuotasPagadasIds.contains(c.getId())) {
-                continue; // Ya cancelada
-            }
+            Credito cred = c.getIdCredito();
+            Venta v = cred.getIdVenta();
+            if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta()) || v.getFechaVenta().isAfter(fechaRef)) continue;
 
             LocalDate venc = c.getFechaVencimiento();
-            // Una cuota es exigible en este corte si vence en la fecha límite de pago o si ya estaba vencida
+            Pago pago = pagosPorCuota.get(c.getId());
+            if (pago != null) {
+                YearMonth cicloObligacion = cicloHistoricoCuota(c);
+                boolean pertenece = ciclo.equals(cicloObligacion)
+                        || ciclo.equals(YearMonth.from(pago.getFechaPagoEfectivo()));
+                if (pertenece) {
+                    if (moneda == null) moneda = v.getMonedaVenta();
+                    validarMoneda(moneda, v);
+                    if (ciclo.equals(cicloObligacion)) vencimientosDelCiclo.add(venc);
+                    historial.add(new PagoRegistrado(
+                            pago.getId(), c.getId(), cred.getId(), v.getId(),
+                            cred.getCodigoCredito(), v.getModalidadPago(), c.getNumeroCuota(),
+                            v.getFechaVenta(), fechaCorteCuota(c), venc, pago.getFechaPagoEfectivo(),
+                            pago.getMedioPago(), pago.getDiasAtraso(), pago.getCapitalPagado(),
+                            pago.getInteresPagado(), pago.getMoraPagada(), pago.getTotalExigible(),
+                            cred.getSaldoCredito(), saldoAlCierrePago(cred, pago.getFechaPagoEfectivo(), todosPagos),
+                            v.getMonedaVenta(), "PAGADA", detallesVenta(v)));
+                    totalPagadoListado = totalPagadoListado.add(pago.getTotalExigible());
+                }
+                continue;
+            }
+
             if (esExigibleEnCiclo(c, ciclo)) {
                 if (!esExigibleEnCiclo(c, ciclo.minusMonths(1))) vencimientosDelCiclo.add(venc);
-                Credito cred = c.getIdCredito();
-                Venta v = cred.getIdVenta();
 
                 if (moneda == null) moneda = v.getMonedaVenta();
                 validarMoneda(moneda, v);
@@ -260,7 +285,9 @@ public class FacturacionCorteService {
                         moraDto.interesMoratorio(),
                         moraDto.totalExigible(),
                         moraDto.estadoCuota(),
-                        moraDto.enMora()
+                        moraDto.enMora(),
+                        fechaCorteCuota(c),
+                        detallesVenta(v)
                 ));
 
                 totalCapital = totalCapital.add(c.getAmortizacion());
@@ -274,6 +301,7 @@ public class FacturacionCorteService {
             }
         }
 
+        historial.sort(Comparator.comparing(PagoRegistrado::fechaPagoEfectivo).thenComparing(PagoRegistrado::idPago));
         ResumenCorte resumen = new ResumenCorte(
                 CalculoFinancieroUtil.redondearMoneda(totalCompras),
                 CalculoFinancieroUtil.redondearMoneda(totalCapital),
@@ -282,7 +310,9 @@ public class FacturacionCorteService {
                 CalculoFinancieroUtil.redondearMoneda(totalExigible),
                 comprasCiclo.size(),
                 obligaciones.size(),
-                cuotasEnMoraCount
+                cuotasEnMoraCount,
+                CalculoFinancieroUtil.redondearMoneda(totalPagadoListado),
+                historial.size()
         );
 
         if (fechasCorteHistoricas.size() == 1) {
@@ -310,8 +340,51 @@ public class FacturacionCorteService {
                 moneda,
                 resumen,
                 comprasCiclo,
-                obligaciones
+                obligaciones,
+                historial
         );
+    }
+
+    private BigDecimal saldoAlCierrePago(Credito credito, LocalDate fechaPago, List<Pago> lista) {
+        BigDecimal capitalPagado = lista.stream()
+                .filter(p -> p.getIdCuota().getIdCredito().getId().equals(credito.getId()))
+                .filter(p -> p.getFechaPagoEfectivo() != null && !p.getFechaPagoEfectivo().isAfter(fechaPago))
+                .map(Pago::getCapitalPagado).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return credito.getCapitalCapitalizado().subtract(capitalPagado);
+    }
+
+    private List<ResponseVentaDTO.Detalle> detallesVenta(Venta venta) {
+        return venta.getDetalles().stream().map(ResponseVentaDTO.Detalle::de).toList();
+    }
+
+    private YearMonth cicloHistoricoCuota(Cuota cuota) {
+        Credito credito = cuota.getIdCredito();
+        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
+        YearMonth vencimiento = YearMonth.from(cuota.getFechaVencimiento());
+        if (pacto != null && pacto.getDiaPago() != null && pacto.getDiaCorte() != null) {
+            return pacto.getDiaPago() <= pacto.getDiaCorte() ? vencimiento.minusMonths(1) : vencimiento;
+        }
+        Venta venta = credito.getIdVenta();
+        if (credito.getFechaCorte() == null || credito.getFechaPrimerPago() == null) return null;
+        int meses = "MENSUAL".equals(venta.getModalidadPago())
+                ? 1 + Objects.requireNonNullElse(venta.getGraciaAdicional(), 0) : 0;
+        YearMonth corteOriginal = YearMonth.from(credito.getFechaCorte().atZone(ZONA_PERU));
+        YearMonth pagoOriginal = YearMonth.from(credito.getFechaPrimerPago()).minusMonths(meses);
+        if (pagoOriginal.equals(corteOriginal)) return vencimiento;
+        if (pagoOriginal.equals(corteOriginal.plusMonths(1))) return vencimiento.minusMonths(1);
+        return null;
+    }
+
+    private LocalDateTime fechaCorteCuota(Cuota cuota) {
+        Credito credito = cuota.getIdCredito();
+        Venta venta = credito.getIdVenta();
+        if ("UNICO".equals(venta.getModalidadPago())) return venta.getFechaCorteAsignada();
+        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
+        YearMonth ciclo = cicloHistoricoCuota(cuota);
+        if (pacto == null || pacto.getDiaCorte() == null || ciclo == null || venta.getFechaCorteAsignada() == null)
+            return null;
+        return LocalDateTime.of(CalendarioCreditoUtil.fechaEnMes(ciclo, pacto.getDiaCorte()),
+                venta.getFechaCorteAsignada().toLocalTime());
     }
 
     boolean esExigibleEnCiclo(Cuota cuota, YearMonth ciclo) {

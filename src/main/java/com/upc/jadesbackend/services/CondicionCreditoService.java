@@ -2,7 +2,6 @@ package com.upc.jadesbackend.services;
 
 import com.upc.jadesbackend.dtos.RequestCondicionCrediticiaDTO;
 import com.upc.jadesbackend.dtos.ResponseCondicionCrediticiaDTO;
-import com.upc.jadesbackend.dtos.ResponseCreditoDisponibleDTO;
 import com.upc.jadesbackend.entities.Cliente;
 import com.upc.jadesbackend.entities.CondicionCredito;
 import com.upc.jadesbackend.entities.TasaInteres;
@@ -18,7 +17,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Map;
 
@@ -63,8 +61,7 @@ public class CondicionCreditoService {
         tm.setIdCondicion(c);
         aplicarTasaMoratoria(tm, dto);
 
-        return ResponseCondicionCrediticiaDTO.de(c, tasasInteres.save(ti), tasasMoratorias.save(tm),
-                calcularDisponibilidad(c));
+        return ResponseCondicionCrediticiaDTO.de(c, tasasInteres.save(ti), tasasMoratorias.save(tm));
     }
 
     public ResponseCondicionCrediticiaDTO actualizar(Long tienda, Long idCliente, RequestCondicionCrediticiaDTO dto, UsuarioPrincipal usuario) {
@@ -84,8 +81,7 @@ public class CondicionCreditoService {
         aplicarCondicion(c, dto);
         aplicarTasaInteres(ti, dto);
         aplicarTasaMoratoria(tm, dto);
-        return ResponseCondicionCrediticiaDTO.de(condiciones.save(c), tasasInteres.save(ti), tasasMoratorias.save(tm),
-                disponibilidad(c, utilizado));
+        return ResponseCondicionCrediticiaDTO.de(condiciones.save(c), tasasInteres.save(ti), tasasMoratorias.save(tm));
     }
 
     @Transactional(readOnly = true)
@@ -93,30 +89,16 @@ public class CondicionCreditoService {
         acceso.exigir(tienda, usuario);
         buscarCliente(tienda, idCliente);
         CondicionCredito c = buscarCondicion(idCliente);
-        return ResponseCondicionCrediticiaDTO.de(c, buscarTasaInteres(c), buscarTasaMoratoria(c), calcularDisponibilidad(c));
-    }
-
-    @Transactional(readOnly = true)
-    public ResponseCreditoDisponibleDTO consultarCreditoDisponible(Long tienda, Long idCliente, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
-        buscarCliente(tienda, idCliente);
-        return calcularDisponibilidad(buscarCondicion(idCliente));
-    }
-
-    private ResponseCreditoDisponibleDTO calcularDisponibilidad(CondicionCredito c) {
-        return disponibilidad(c, evaluacion.creditoUtilizado(c.getIdCliente().getId()));
-    }
-
-    private ResponseCreditoDisponibleDTO disponibilidad(CondicionCredito c, BigDecimal utilizado) {
-        return new ResponseCreditoDisponibleDTO(c.getIdCliente().getId(), c.getMonedaCredito(),
-                c.getLimiteCredito(), utilizado, evaluacion.creditoDisponible(c, utilizado));
+        return ResponseCondicionCrediticiaDTO.de(c, buscarTasaInteres(c), buscarTasaMoratoria(c));
     }
 
     // HU-07 Reglas de negocio adicionales
 
     void validarReglas(RequestCondicionCrediticiaDTO dto) {
-        if (dto.tasaInteres().compareTo(BigDecimal.ONE) > 0 || dto.tasaMoratoria().compareTo(BigDecimal.ONE) > 0)
-            throw new NegocioException(HttpStatus.BAD_REQUEST, "Las tasas deben ser fracciones decimales: 18% = 0.18");
+        if (dto.tasaInteres() == null || dto.tasaInteres().signum() <= 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "La tasa de interés debe ser mayor a cero");
+        if (dto.tasaMoratoria() == null || dto.tasaMoratoria().signum() <= 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "La tasa moratoria debe ser mayor a cero");
         if (dto.diaCorte().equals(dto.diaPago()))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El día de pago debe ser distinto al día de corte");
         validarTasa("compensatoria", dto.tipoTasa(), dto.periodoTasa(), dto.capitalizacionTasa());

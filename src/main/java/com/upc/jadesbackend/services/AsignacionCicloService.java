@@ -3,6 +3,8 @@ package com.upc.jadesbackend.services;
 import com.upc.jadesbackend.entities.CondicionCredito;
 import com.upc.jadesbackend.util.CalendarioCreditoUtil;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import com.upc.jadesbackend.exceptions.NegocioException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,14 +31,14 @@ public class AsignacionCicloService {
                 horaCorte
         );
 
-        int mesesGracia = "MENSUAL".equals(modalidadPago)
-                ? graciaAdicional : 0;
+        if (graciaAdicional != 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "No se permiten meses adicionales de gracia");
 
         LocalDate finGracia = CalendarioCreditoUtil.fechaFinGracia(
                 fechaCorte,
                 condicion.getDiaCorte(),
                 condicion.getDiaPago(),
-                mesesGracia
+                0
         );
 
         LocalDate fechaPago = "MENSUAL".equals(modalidadPago)

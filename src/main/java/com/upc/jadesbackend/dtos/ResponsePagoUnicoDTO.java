@@ -20,5 +20,9 @@ public record ResponsePagoUnicoDTO(
         BigDecimal tasaEfectivaPeriodo,
         BigDecimal interesCompensatorio,
         BigDecimal totalSinMora,
-        String estadoCuota
+        String estadoCuota,
+        LocalDate fechaPagoEfectivo,
+        BigDecimal interesPagado,
+        BigDecimal moraPagada,
+        BigDecimal totalPagado
 ) {}
