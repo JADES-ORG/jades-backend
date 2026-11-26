@@ -2,6 +2,7 @@ package com.upc.jadesbackend.services;
 
 import com.upc.jadesbackend.dtos.RequestCondicionCrediticiaDTO;
 import com.upc.jadesbackend.dtos.ResponseCondicionCrediticiaDTO;
+import com.upc.jadesbackend.dtos.ResponseCreditoDisponibleDTO;
 import com.upc.jadesbackend.entities.Cliente;
 import com.upc.jadesbackend.entities.CondicionCredito;
 import com.upc.jadesbackend.entities.TasaInteres;
@@ -62,7 +63,8 @@ public class CondicionCreditoService {
         tm.setIdCondicion(c);
         aplicarTasaMoratoria(tm, dto);
 
-        return ResponseCondicionCrediticiaDTO.de(c, tasasInteres.save(ti), tasasMoratorias.save(tm));
+        return ResponseCondicionCrediticiaDTO.de(c, tasasInteres.save(ti), tasasMoratorias.save(tm),
+                calcularDisponibilidad(c));
     }
 
     public ResponseCondicionCrediticiaDTO actualizar(Long tienda, Long idCliente, RequestCondicionCrediticiaDTO dto, UsuarioPrincipal usuario) {
@@ -82,7 +84,8 @@ public class CondicionCreditoService {
         aplicarCondicion(c, dto);
         aplicarTasaInteres(ti, dto);
         aplicarTasaMoratoria(tm, dto);
-        return ResponseCondicionCrediticiaDTO.de(condiciones.save(c), tasasInteres.save(ti), tasasMoratorias.save(tm));
+        return ResponseCondicionCrediticiaDTO.de(condiciones.save(c), tasasInteres.save(ti), tasasMoratorias.save(tm),
+                disponibilidad(c, utilizado));
     }
 
     @Transactional(readOnly = true)
@@ -90,7 +93,23 @@ public class CondicionCreditoService {
         acceso.exigir(tienda, usuario);
         buscarCliente(tienda, idCliente);
         CondicionCredito c = buscarCondicion(idCliente);
-        return ResponseCondicionCrediticiaDTO.de(c, buscarTasaInteres(c), buscarTasaMoratoria(c));
+        return ResponseCondicionCrediticiaDTO.de(c, buscarTasaInteres(c), buscarTasaMoratoria(c), calcularDisponibilidad(c));
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseCreditoDisponibleDTO consultarCreditoDisponible(Long tienda, Long idCliente, UsuarioPrincipal usuario) {
+        acceso.exigir(tienda, usuario);
+        buscarCliente(tienda, idCliente);
+        return calcularDisponibilidad(buscarCondicion(idCliente));
+    }
+
+    private ResponseCreditoDisponibleDTO calcularDisponibilidad(CondicionCredito c) {
+        return disponibilidad(c, evaluacion.creditoUtilizado(c.getIdCliente().getId()));
+    }
+
+    private ResponseCreditoDisponibleDTO disponibilidad(CondicionCredito c, BigDecimal utilizado) {
+        return new ResponseCreditoDisponibleDTO(c.getIdCliente().getId(), c.getMonedaCredito(),
+                c.getLimiteCredito(), utilizado, evaluacion.creditoDisponible(c, utilizado));
     }
 
     // HU-07 Reglas de negocio adicionales
