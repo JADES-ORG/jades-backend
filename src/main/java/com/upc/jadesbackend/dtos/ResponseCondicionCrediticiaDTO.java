@@ -15,6 +15,8 @@ public record ResponseCondicionCrediticiaDTO(
         String nombreCliente,
         String monedaCredito,
         BigDecimal limiteCredito,
+        BigDecimal creditoUtilizado,
+        BigDecimal creditoDisponible,
         Integer plazoMaximo,
         Integer diaCorte,
         Integer diaPago,
@@ -28,13 +30,16 @@ public record ResponseCondicionCrediticiaDTO(
         String periodoTasaMora,
         String capitalizacionMora
 ) {
-    public static ResponseCondicionCrediticiaDTO de(CondicionCredito c, TasaInteres ti, TasaMoratoria tm) {
+    public static ResponseCondicionCrediticiaDTO de(CondicionCredito c, TasaInteres ti, TasaMoratoria tm,
+                                                      ResponseCreditoDisponibleDTO credito) {
         return new ResponseCondicionCrediticiaDTO(
                 c.getId(),
                 c.getIdCliente().getId(),
                 c.getIdCliente().getNombreCliente(),
                 c.getMonedaCredito(),
                 c.getLimiteCredito(),
+                credito.creditoUtilizado(),
+                credito.creditoDisponible(),
                 c.getPlazoMaximo(),
                 c.getDiaCorte(),
                 c.getDiaPago(),

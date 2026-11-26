@@ -1,6 +1,7 @@
 package com.upc.jadesbackend.repositories;
 
 import com.upc.jadesbackend.entities.UsuarioTienda;
+import com.upc.jadesbackend.entities.Tienda;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -39,4 +40,13 @@ public interface UsuarioTiendaRepositorio extends JpaRepository<UsuarioTienda, L
         order by ut.idTienda.id
         """)
     List<Long> idsTiendasActivas(@Param("usuarioId") Long usuarioId);
+
+    @Query("""
+        select distinct t from UsuarioTienda ut join ut.idTienda t
+        where ut.idUsuario.id = :usuarioId
+          and ut.estadoAcceso = 'ACTIVO'
+          and t.estadoTienda = 'ACTIVO'
+        order by t.id
+        """)
+    List<Tienda> listarTiendasActivas(@Param("usuarioId") Long usuarioId);
 }

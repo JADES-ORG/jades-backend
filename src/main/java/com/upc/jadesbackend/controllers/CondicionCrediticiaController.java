@@ -2,6 +2,7 @@ package com.upc.jadesbackend.controllers;
 
 import com.upc.jadesbackend.dtos.RequestCondicionCrediticiaDTO;
 import com.upc.jadesbackend.dtos.ResponseCondicionCrediticiaDTO;
+import com.upc.jadesbackend.dtos.ResponseCreditoDisponibleDTO;
 import com.upc.jadesbackend.security.principal.UsuarioPrincipal;
 import com.upc.jadesbackend.services.CondicionCreditoService;
 import jakarta.validation.Valid;
@@ -34,6 +35,13 @@ public class CondicionCrediticiaController {
     public ResponseCondicionCrediticiaDTO consultar(@PathVariable Long tienda, @PathVariable Long cliente,
                                                     @AuthenticationPrincipal UsuarioPrincipal usuario) {
         return servicio.consultar(tienda, cliente, usuario);
+    }
+
+    @GetMapping("/credito-disponible")
+    public ResponseCreditoDisponibleDTO consultarCreditoDisponible(@PathVariable Long tienda,
+                                                                  @PathVariable Long cliente,
+                                                                  @AuthenticationPrincipal UsuarioPrincipal usuario) {
+        return servicio.consultarCreditoDisponible(tienda, cliente, usuario);
     }
 
     @PutMapping

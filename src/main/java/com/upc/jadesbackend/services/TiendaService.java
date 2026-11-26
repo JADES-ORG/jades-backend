@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.List;
 
 @Service
 public class TiendaService {
@@ -94,8 +95,18 @@ public class TiendaService {
     public ResponseTiendaResumenDTO consultar(Long idTienda) {
         Tienda tienda = tiendas.findById(idTienda)
                 .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Tienda no encontrada"));
-        return new ResponseTiendaResumenDTO(tienda.getId(), tienda.getNombreTienda(),
-                tienda.getDocumentoTienda(), tienda.getEstadoTienda());
+        return ResponseTiendaResumenDTO.de(tienda);
+    }
+
+    /** Tiendas operativas del administrador autenticado; no acepta IDs de usuario externos. */
+    @Transactional(readOnly = true)
+    public List<ResponseTiendaResumenDTO> listarMisTiendas(UsuarioPrincipal principal) {
+        if (principal == null || !principal.isEnabled() || !"ADMIN_NEGOCIO".equals(principal.getRol())) {
+            throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso a las tiendas");
+        }
+        return vinculos.listarTiendasActivas(principal.getId()).stream()
+                .map(ResponseTiendaResumenDTO::de)
+                .toList();
     }
 
     @Transactional
