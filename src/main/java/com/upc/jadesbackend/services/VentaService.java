@@ -6,6 +6,10 @@ import java.util.regex.Pattern;
 
 import com.upc.jadesbackend.dtos.RequestVentaDTO;
 import com.upc.jadesbackend.dtos.ResponseVentaDTO;
+import com.upc.jadesbackend.dtos.ResponseSimulacionVentaDTO;
+import com.upc.jadesbackend.dtos.RequestSimularCronogramaDTO;
+import com.upc.jadesbackend.dtos.ResponseCronogramaDTO;
+import com.upc.jadesbackend.util.CalculoFinancieroUtil;
 import com.upc.jadesbackend.entities.*;
 import com.upc.jadesbackend.exceptions.NegocioException;
 import com.upc.jadesbackend.repositories.*;
@@ -49,6 +53,8 @@ public class VentaService {
 
     private final CronogramaService cronogramas;
     private final PagoUnicoService pagosUnicos;
+    private final TasaInteresRepositorio tasasInteres;
+    private final TasaMoratoriaRepositorio tasasMora;
 
     public ResponseVentaDTO registrar(Long tienda, RequestVentaDTO dto, UsuarioPrincipal usuario, String claveIdempotencia) {
         acceso.exigir(tienda, usuario);
@@ -108,27 +114,7 @@ public class VentaService {
         venta.setFechaPagoAsignada(resultado.fechaPago());
         venta.setClaveIdempotencia(clave);
 
-        BigDecimal total = BigDecimal.ZERO;
-        Set<Long> vistos = new HashSet<>();
-        for (RequestVentaDTO.Detalle linea : dto.detalles()) {
-            if (!vistos.add(linea.idProducto()))
-                throw new NegocioException(HttpStatus.BAD_REQUEST,
-                        "El producto " + linea.idProducto() + " está repetido; indica la cantidad total en una sola línea");
-            Producto producto = productos.findByIdAndIdTienda_Id(linea.idProducto(), tienda).orElseThrow(() ->
-                    new NegocioException(HttpStatus.NOT_FOUND, "Producto " + linea.idProducto() + " no encontrado en esta tienda"));
-            validarProducto(producto, linea, dto.modalidadPago());
-
-            DetalleVenta detalle = new DetalleVenta();
-            detalle.setIdProducto(producto);
-            detalle.setNombreProducto(producto.getNombreProducto());
-            detalle.setUnidadMedida(producto.getUnidadMedida());
-            detalle.setCantidad(linea.cantidad());
-            detalle.setPrecioUnitario(producto.getPrecioCredito());   // precio a crédito vigente al momento de la venta
-            detalle.setSubtotal(producto.getPrecioCredito().multiply(linea.cantidad()).setScale(2, RoundingMode.HALF_UP));
-            venta.agregarDetalle(detalle);
-            total = total.add(detalle.getSubtotal());
-        }
-        venta.setTotalVenta(total);
+        BigDecimal total = calcularDetalles(venta, tienda, dto);
 
         evaluacion.validarLimite(cliente.getId(), condicion, total);   // HU09 - criterio 1
 
@@ -166,6 +152,106 @@ public class VentaService {
                 ? ventas.findAllByIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(tienda)
                 : ventas.findAllByIdCliente_IdAndIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(idCliente, tienda);
         return lista.stream().map(ResponseVentaDTO::de).toList();
+    }
+
+    /**
+     * Cotización sin persistencia. Los precios, las condiciones y el reloj son del servidor.
+     * La confirmación vuelve a validar los datos bajo los bloqueos de registrar().
+     */
+    @Transactional
+    public ResponseSimulacionVentaDTO simular(Long tienda, RequestVentaDTO dto, UsuarioPrincipal usuario) {
+        Tienda t = acceso.exigir(tienda, usuario);
+        if (!"ACTIVO".equals(t.getEstadoTienda()))
+            throw new NegocioException(HttpStatus.CONFLICT, "La tienda no está activa");
+        Cliente cliente = clientes.findByIdAndIdTienda_Id(dto.idCliente(), tienda).orElseThrow(() ->
+                new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado en esta tienda"));
+        if (!"ACTIVO".equals(cliente.getEstadoCliente()))
+            throw new NegocioException(HttpStatus.CONFLICT, "No se pueden registrar ventas a un cliente inactivo");
+        CondicionCredito condicion = condiciones.findByIdCliente_Id(cliente.getId()).orElseThrow(() ->
+                new NegocioException(HttpStatus.CONFLICT, "El cliente no tiene condiciones crediticias configuradas"));
+        validarCuotas(dto);
+        evaluacion.validarPlazo(condicion, dto.numeroCuotas());
+
+        // Entidad transitoria para compartir la lógica de líneas; nunca se guarda.
+        Venta borrador = new Venta();
+        BigDecimal capital = calcularDetalles(borrador, tienda, dto);
+        if (capital.signum() <= 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "El capital de la venta debe ser mayor a cero");
+        BigDecimal utilizado = evaluacion.creditoUtilizado(cliente.getId());
+        BigDecimal disponible = evaluacion.creditoDisponible(condicion, utilizado);
+        if (capital.compareTo(disponible) > 0)
+            throw new NegocioException(HttpStatus.CONFLICT, "El capital supera el crédito disponible");
+
+        TasaInteres tasa = tasasInteres.findByIdCondicion_Id(condicion.getId()).orElseThrow(() ->
+                new NegocioException(HttpStatus.CONFLICT, "El cliente no tiene tasa de interés configurada"));
+        TasaMoratoria mora = tasasMora.findByIdCondicion_Id(condicion.getId()).orElseThrow(() ->
+                new NegocioException(HttpStatus.CONFLICT, "Falta la tasa moratoria pactada"));
+
+        LocalDateTime ahora = LocalDateTime.now(ZONA_NEGOCIO).truncatedTo(ChronoUnit.SECONDS);
+        var ciclo = asignacionCicloService.asignar(ahora.toLocalDate(), ahora.toLocalTime(),
+                dto.modalidadPago(), 0, condicion);
+        ResponseCronogramaDTO cronograma = null;
+        ResponseSimulacionVentaDTO.PagoUnico pagoUnico = null;
+        BigDecimal reserva;
+        BigDecimal totalPagar;
+        try {
+            // Comprobar también que la tasa histórica de mora podrá construirse al registrar.
+            CalculoFinancieroUtil.tasaEfectivaDiaria(mora.getTipoTasaMora(), mora.getTasaMoratoria(),
+                    mora.getPeriodoTasaMora(), mora.getCapitalizacionMora());
+            if ("MENSUAL".equals(dto.modalidadPago())) {
+                cronograma = cronogramas.simular(new RequestSimularCronogramaDTO(
+                        capital, tasa.getTipoTasa(), tasa.getTasaInteres(), tasa.getPeriodoTasa(),
+                        tasa.getCapitalizacionTasa(), dto.numeroCuotas(), ahora.toLocalDate(),
+                        ahora.toLocalTime(), condicion.getDiaCorte(), condicion.getHoraCorte(),
+                        condicion.getDiaPago(), 0, condicion.getMonedaCredito()));
+                reserva = cronograma.capitalCapitalizado();
+                totalPagar = cronograma.totalFinanciamiento();
+            } else {
+                var calculo = CalculoFinancieroUtil.calcularPagoUnico(capital, ahora.toLocalDate(),
+                        ciclo.fechaPago(), tasa.getTipoTasa(), tasa.getTasaInteres(),
+                        tasa.getPeriodoTasa(), tasa.getCapitalizacionTasa());
+                pagoUnico = new ResponseSimulacionVentaDTO.PagoUnico(
+                        calculo.capital(), calculo.diasFinanciamiento(), calculo.tasaEfectivaDiaria(),
+                        calculo.tasaEfectivaPeriodo(), calculo.interesCompensatorio(), calculo.totalPagar());
+                reserva = calculo.capital();
+                totalPagar = calculo.totalPagar();
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new NegocioException(HttpStatus.BAD_REQUEST, ex.getMessage());
+        }
+        if (reserva.compareTo(disponible) > 0)
+            throw new NegocioException(HttpStatus.CONFLICT, "El capital con la gracia supera el crédito disponible");
+        return new ResponseSimulacionVentaDTO(cliente.getId(), cliente.getNombreCliente(), dto.modalidadPago(),
+                dto.numeroCuotas(), condicion.getMonedaCredito(), ahora.toLocalDate(), ahora.toLocalTime(),
+                ciclo.fechaCorte(), ciclo.fechaPago(), capital, reserva, totalPagar,
+                condicion.getLimiteCredito(), utilizado, disponible, disponible.subtract(reserva),
+                borrador.getDetalles().stream().map(ResponseVentaDTO.Detalle::de).toList(), cronograma, pagoUnico);
+    }
+
+    /** Calcula los mismos precios y subtotales para venta y simulación. No persiste. */
+    private BigDecimal calcularDetalles(Venta venta, Long tienda, RequestVentaDTO dto) {
+        BigDecimal total = BigDecimal.ZERO;
+        Set<Long> vistos = new HashSet<>();
+        for (RequestVentaDTO.Detalle linea : dto.detalles()) {
+            if (!vistos.add(linea.idProducto()))
+                throw new NegocioException(HttpStatus.BAD_REQUEST,
+                        "El producto " + linea.idProducto() + " está repetido; indica la cantidad total en una sola línea");
+            Producto producto = productos.findByIdAndIdTienda_Id(linea.idProducto(), tienda).orElseThrow(() ->
+                    new NegocioException(HttpStatus.NOT_FOUND, "Producto " + linea.idProducto() + " no encontrado en esta tienda"));
+            validarProducto(producto, linea, dto.modalidadPago());
+
+            DetalleVenta detalle = new DetalleVenta();
+            detalle.setIdProducto(producto);
+            detalle.setNombreProducto(producto.getNombreProducto());
+            detalle.setUnidadMedida(producto.getUnidadMedida());
+            detalle.setCantidad(linea.cantidad());
+            detalle.setPrecioUnitario(producto.getPrecioCredito());   // precio a crédito vigente al momento de la venta
+            detalle.setSubtotal(producto.getPrecioCredito().multiply(linea.cantidad()).setScale(2, RoundingMode.HALF_UP));
+            venta.agregarDetalle(detalle);
+            total = total.add(detalle.getSubtotal());
+        }
+        venta.setTotalVenta(total);
+        return total;
     }
 
     // Reglas del negocio
