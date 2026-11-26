@@ -10,6 +10,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.util.List;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/tiendas/{tienda}/productos")
@@ -29,4 +33,36 @@ public class ProductoController {
     public ResponseProductoDTO actualizar(@PathVariable Long tienda, @PathVariable Long id, @Valid @RequestBody RequestProductoDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.actualizar(tienda, id, dto, usuario); }
     @PatchMapping("/{id}/desactivar")
     public ResponseProductoDTO desactivar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.desactivar(tienda, id, usuario); }
+
+
+    @PostMapping(
+        value = "/{id}/imagen",
+        consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseProductoDTO subirImagen(
+            @PathVariable Long tienda,
+            @PathVariable Long id,
+            @RequestParam("archivo") MultipartFile archivo,
+            @AuthenticationPrincipal UsuarioPrincipal usuario) {
+
+        return servicio.subirImagen(tienda, id, archivo, usuario);
+    }
+
+    @GetMapping("/{id}/imagenes/{nombre}")
+    public ResponseEntity<ByteArrayResource> consultarImagen(
+            @PathVariable Long tienda,
+            @PathVariable Long id,
+            @PathVariable String nombre,
+            @AuthenticationPrincipal UsuarioPrincipal usuario) 
+    {
+
+        var imagen = servicio.consultarImagen(tienda, id, nombre, usuario);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .contentLength(imagen.contentLength())
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(imagen);
+    }
 }

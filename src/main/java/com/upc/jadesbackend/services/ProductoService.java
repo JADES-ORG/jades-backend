@@ -9,12 +9,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import java.util.List;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class ProductoService {
     private final ProductoRepositorio repositorio;
     private final AccesoNegocioService acceso;
+    private final ImagenProductoStorage imagenes;
     public ResponseProductoDTO registrar(Long tienda, RequestProductoDTO dto, UsuarioPrincipal usuario) {
         Producto e = new Producto();
         e.setIdTienda(acceso.exigir(tienda, usuario));
@@ -79,5 +84,54 @@ public class ProductoService {
         e.setUnidadMedida(dto.unidadMedida());
         e.setImagenProducto(dto.imagenProducto());
         e.setModalidad(dto.modalidad());
+    }
+
+    //subir imagen
+    public ResponseProductoDTO subirImagen(
+        Long tienda,
+        Long id,
+        MultipartFile archivo,
+        UsuarioPrincipal usuario) {
+
+    acceso.exigir(tienda, usuario);
+
+    Producto producto = buscar(tienda, id);
+    String nombre = imagenes.guardar(archivo);
+
+    // Si la transacción de base de datos falla, elimina el archivo nuevo.
+    TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        imagenes.eliminar(nombre);
+                    }
+                }
+            }
+    );
+
+    producto.setImagenProducto(imagenes.url(tienda, id, nombre));
+
+    return ResponseProductoDTO.de(repositorio.saveAndFlush(producto));
+    }
+
+    @Transactional(readOnly = true)
+    public ByteArrayResource consultarImagen(
+            Long tienda,
+            Long id,
+            String nombre,
+            UsuarioPrincipal usuario) {
+
+        acceso.exigir(tienda, usuario);
+
+        Producto producto = buscar(tienda, id);
+
+        if (!imagenes.corresponde(
+                producto.getImagenProducto(), tienda, id, nombre)) {
+            throw new NegocioException(
+                    HttpStatus.NOT_FOUND, "Imagen no encontrada");
+        }
+
+        return imagenes.leer(nombre);
     }
 }
