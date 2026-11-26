@@ -31,7 +31,7 @@ class TiendaMisTiendasTest {
         tienda.setNombreTienda("Bodega");
         tienda.setDocumentoTienda("12345678901");
         tienda.setEstadoTienda("ACTIVO");
-        when(vinculos.listarTiendasActivas(7L)).thenReturn(List.of(tienda));
+        when(vinculos.listarTiendasVinculadas(7L)).thenReturn(List.of(tienda));
 
         var resultado = servicio.listarMisTiendas(principal("ADMIN_NEGOCIO", true));
 
@@ -39,12 +39,12 @@ class TiendaMisTiendasTest {
         assertEquals(12L, resultado.get(0).idTienda());
         assertEquals("Bodega", resultado.get(0).nombreTienda());
         assertEquals("ACTIVO", resultado.get(0).estadoTienda());
-        verify(vinculos).listarTiendasActivas(7L);
+        verify(vinculos).listarTiendasVinculadas(7L);
     }
 
     @Test
-    void devuelveListaVaciaSinTiendasActivas() {
-        when(vinculos.listarTiendasActivas(7L)).thenReturn(List.of());
+    void devuelveListaVaciaSinTiendasVinculadas() {
+        when(vinculos.listarTiendasVinculadas(7L)).thenReturn(List.of());
         assertTrue(servicio.listarMisTiendas(principal("ADMIN_NEGOCIO", true)).isEmpty());
     }
 

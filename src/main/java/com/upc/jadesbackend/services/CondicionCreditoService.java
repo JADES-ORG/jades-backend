@@ -92,7 +92,7 @@ public class CondicionCreditoService {
 
     @Transactional(readOnly = true)
     public ResponseCondicionCrediticiaDTO consultar(Long tienda, Long idCliente, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         buscarCliente(tienda, idCliente);
         CondicionCredito c = buscarCondicion(idCliente);
         return ResponseCondicionCrediticiaDTO.de(c, buscarTasaInteres(c), buscarTasaMoratoria(c), calcularDisponibilidad(c));
@@ -100,7 +100,7 @@ public class CondicionCreditoService {
 
     @Transactional(readOnly = true)
     public ResponseCreditoDisponibleDTO consultarCreditoDisponible(Long tienda, Long idCliente, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         buscarCliente(tienda, idCliente);
         return calcularDisponibilidad(buscarCondicion(idCliente));
     }

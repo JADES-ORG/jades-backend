@@ -154,14 +154,14 @@ public class VentaService {
 
     @Transactional(readOnly = true)
     public ResponseVentaDTO consultar(Long tienda, Long id, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         return ResponseVentaDTO.de(ventas.findByIdAndIdCliente_IdTienda_Id(id, tienda).orElseThrow(() ->
                 new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada en esta tienda")));
     }
 
     @Transactional(readOnly = true)
     public List<ResponseVentaDTO> listar(Long tienda, Long idCliente, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         List<Venta> lista = idCliente == null
                 ? ventas.findAllByIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(tienda)
                 : ventas.findAllByIdCliente_IdAndIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(idCliente, tienda);

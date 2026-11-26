@@ -50,7 +50,7 @@ class ConsultaCreditoDisponibleTest {
         assertEquals(new BigDecimal("500.00"), primera.creditoUtilizado());
         assertEquals(new BigDecimal("1800.00"), servicio.consultarCreditoDisponible(1L, 2L, usuario).creditoDisponible());
         assertEquals(0, servicio.consultarCreditoDisponible(1L, 2L, usuario).creditoDisponible().signum());
-        verify(acceso, times(3)).exigir(1L, usuario);
+        verify(acceso, times(3)).exigirParaConsulta(1L, usuario);
     }
 
     @Test

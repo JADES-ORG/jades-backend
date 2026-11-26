@@ -49,4 +49,12 @@ public interface UsuarioTiendaRepositorio extends JpaRepository<UsuarioTienda, L
         order by t.id
         """)
     List<Tienda> listarTiendasActivas(@Param("usuarioId") Long usuarioId);
+
+    @Query("""
+        select distinct t from UsuarioTienda ut join ut.idTienda t
+        where ut.idUsuario.id = :usuarioId
+          and ut.estadoAcceso = 'ACTIVO'
+        order by t.id
+        """)
+    List<Tienda> listarTiendasVinculadas(@Param("usuarioId") Long usuarioId);
 }
