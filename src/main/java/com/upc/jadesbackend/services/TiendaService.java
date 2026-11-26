@@ -98,13 +98,13 @@ public class TiendaService {
         return ResponseTiendaResumenDTO.de(tienda);
     }
 
-    /** Tiendas operativas del administrador autenticado; no acepta IDs de usuario externos. */
+    /** Tiendas vinculadas al administrador autenticado; no acepta IDs de usuario externos. */
     @Transactional(readOnly = true)
     public List<ResponseTiendaResumenDTO> listarMisTiendas(UsuarioPrincipal principal) {
         if (principal == null || !principal.isEnabled() || !"ADMIN_NEGOCIO".equals(principal.getRol())) {
             throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso a las tiendas");
         }
-        return vinculos.listarTiendasActivas(principal.getId()).stream()
+        return vinculos.listarTiendasVinculadas(principal.getId()).stream()
                 .map(ResponseTiendaResumenDTO::de)
                 .toList();
     }
@@ -127,6 +127,26 @@ public class TiendaService {
         auditorias.save(auditoria);
         tiendas.save(tienda);
         return new ResponseBajaTiendaDTO(tienda.getId(), tienda.getEstadoTienda(), principal.getId(), auditoria.getFechaAccion());
+    }
+
+    @Transactional
+    public ResponseTiendaResumenDTO reactivar(Long idTienda, UsuarioPrincipal principal) {
+        if (principal == null || !principal.isEnabled() || !"ADMIN_SISTEMA".equals(principal.getRol())) {
+            throw new NegocioException(HttpStatus.FORBIDDEN, "Solo el administrador del sistema puede reactivar tiendas");
+        }
+        Tienda tienda = tiendas.bloquearParaBaja(idTienda)
+                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Tienda no encontrada"));
+        if (!"INACTIVO".equals(tienda.getEstadoTienda())) {
+            throw new NegocioException(HttpStatus.CONFLICT, "La tienda no está desactivada");
+        }
+        String anterior = tienda.getEstadoTienda();
+        tienda.setEstadoTienda("ACTIVO");
+        Usuario responsable = usuarios.findById(principal.getId())
+                .orElseThrow(() -> new NegocioException(HttpStatus.UNAUTHORIZED, "Administrador no encontrado"));
+
+        auditorias.save(nuevaAuditoria(responsable, tienda, "UPDATE",
+                Map.of("estado_tienda", anterior), Map.of("estado_tienda", "ACTIVO")));
+        return ResponseTiendaResumenDTO.de(tiendas.save(tienda));
     }
 
     private Auditoria nuevaAuditoria(Usuario responsable, Tienda tienda, String accion,

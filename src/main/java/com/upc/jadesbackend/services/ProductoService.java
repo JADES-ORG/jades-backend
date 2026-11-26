@@ -46,13 +46,13 @@ public class ProductoService {
     }
     @Transactional(readOnly=true)
     public List<ResponseProductoDTO> listar(Long tienda, boolean soloActivos, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         return (soloActivos ? repositorio.findByIdTienda_IdAndEstadoProductoOrderByIdAsc(tienda, "ACTIVO") : repositorio.findByIdTienda_IdOrderByIdAsc(tienda))
                 .stream().map(ResponseProductoDTO::de).toList();
     }
     @Transactional(readOnly=true)
     public ResponseProductoDTO consultar(Long tienda, Long id, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         return ResponseProductoDTO.de(buscar(tienda, id));
     }
     private Producto buscar(Long tienda, Long id) {

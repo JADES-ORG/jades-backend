@@ -140,14 +140,14 @@ public class VentaService {
 
     @Transactional(readOnly = true)
     public ResponseVentaDTO consultar(Long tienda, Long id, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         return ResponseVentaDTO.de(ventas.findByIdAndIdCliente_IdTienda_Id(id, tienda).orElseThrow(() ->
                 new NegocioException(HttpStatus.NOT_FOUND, "Venta no encontrada en esta tienda")));
     }
 
     @Transactional(readOnly = true)
     public List<ResponseVentaDTO> listar(Long tienda, Long idCliente, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         List<Venta> lista = idCliente == null
                 ? ventas.findAllByIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(tienda)
                 : ventas.findAllByIdCliente_IdAndIdCliente_IdTienda_IdOrderByFechaVentaDescHoraVentaDesc(idCliente, tienda);
@@ -158,7 +158,7 @@ public class VentaService {
      * Cotización sin persistencia. Los precios, las condiciones y el reloj son del servidor.
      * La confirmación vuelve a validar los datos bajo los bloqueos de registrar().
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseSimulacionVentaDTO simular(Long tienda, RequestVentaDTO dto, UsuarioPrincipal usuario) {
         Tienda t = acceso.exigir(tienda, usuario);
         if (!"ACTIVO".equals(t.getEstadoTienda()))
@@ -268,7 +268,8 @@ public class VentaService {
         if (!"AMBAS".equals(producto.getModalidad()) && !modalidadVenta.equals(producto.getModalidad()))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El producto '" + producto.getNombreProducto()
                     + "' solo admite la modalidad " + producto.getModalidad());
-        if (!"KILOGRAMO".equals(producto.getUnidadMedida()) && linea.cantidad().stripTrailingZeros().scale() > 0)
+        if (!Set.of("KILOGRAMO", "GRAMO", "LITRO", "MILILITRO", "METRO", "CENTIMETRO", "METRO_CUADRADO", "HORA")
+                .contains(producto.getUnidadMedida()) && linea.cantidad().stripTrailingZeros().scale() > 0)
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La cantidad de '" + producto.getNombreProducto()
                     + "' debe ser un número entero (" + producto.getUnidadMedida() + ")");
     }

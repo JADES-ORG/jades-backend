@@ -60,15 +60,21 @@ public class ClienteService {
         e.setEstadoCliente("INACTIVO");
         return ResponseClienteDTO.de(repositorio.save(e));
     }
+    public ResponseClienteDTO reactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
+        acceso.exigir(tienda, usuario);
+        Cliente e = buscar(tienda, id);
+        e.setEstadoCliente("ACTIVO");
+        return ResponseClienteDTO.de(repositorio.save(e));
+    }
     @Transactional(readOnly=true)
     public List<ResponseClienteDTO> listar(Long tienda, boolean soloActivos, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         return (soloActivos ? repositorio.findByIdTienda_IdAndEstadoClienteOrderByIdAsc(tienda, "ACTIVO") : repositorio.findByIdTienda_IdOrderByIdAsc(tienda))
                 .stream().map(ResponseClienteDTO::de).toList();
     }
     @Transactional(readOnly=true)
     public ResponseClienteDTO consultar(Long tienda, Long id, UsuarioPrincipal usuario) {
-        acceso.exigir(tienda, usuario);
+        acceso.exigirParaConsulta(tienda, usuario);
         return ResponseClienteDTO.de(buscar(tienda, id));
     }
     private Cliente buscar(Long tienda, Long id) {

@@ -16,11 +16,19 @@ public class AccesoNegocioService {
                 || !vinculos.tieneVinculoActivo(usuario.getId(), idTienda))
             throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso para cobrar en esta tienda");
     }
+    public void exigirParaConsulta(Long idTienda, UsuarioPrincipal usuario) {
+        if (usuario == null || !usuario.isEnabled() || !"ADMIN_NEGOCIO".equals(usuario.getRol())
+                || !vinculos.tieneVinculoActivo(usuario.getId(), idTienda))
+            throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso para consultar esta tienda");
+    }
     public Tienda exigir(Long idTienda, UsuarioPrincipal usuario) {
         if (usuario == null || !usuario.isEnabled() || !"ADMIN_NEGOCIO".equals(usuario.getRol())
                 || !vinculos.tieneAccesoActivo(usuario.getId(), idTienda))
             throw new NegocioException(HttpStatus.FORBIDDEN, "No tienes acceso activo a esta tienda");
-        return tiendas.findById(idTienda).orElseThrow(() ->
+        Tienda tienda = tiendas.bloquearParaVenta(idTienda).orElseThrow(() ->
                 new NegocioException(HttpStatus.NOT_FOUND, "Tienda no encontrada"));
+        if (!"ACTIVO".equals(tienda.getEstadoTienda()))
+            throw new NegocioException(HttpStatus.FORBIDDEN, "La tienda no está activa");
+        return tienda;
     }
 }
