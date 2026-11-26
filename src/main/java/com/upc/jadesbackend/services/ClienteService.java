@@ -60,6 +60,12 @@ public class ClienteService {
         e.setEstadoCliente("INACTIVO");
         return ResponseClienteDTO.de(repositorio.save(e));
     }
+    public ResponseClienteDTO reactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
+        acceso.exigir(tienda, usuario);
+        Cliente e = buscar(tienda, id);
+        e.setEstadoCliente("ACTIVO");
+        return ResponseClienteDTO.de(repositorio.save(e));
+    }
     @Transactional(readOnly=true)
     public List<ResponseClienteDTO> listar(Long tienda, boolean soloActivos, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);

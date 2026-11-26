@@ -182,7 +182,8 @@ public class VentaService {
         if (!"AMBAS".equals(producto.getModalidad()) && !modalidadVenta.equals(producto.getModalidad()))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El producto '" + producto.getNombreProducto()
                     + "' solo admite la modalidad " + producto.getModalidad());
-        if (!"KILOGRAMO".equals(producto.getUnidadMedida()) && linea.cantidad().stripTrailingZeros().scale() > 0)
+        if (!Set.of("KILOGRAMO", "GRAMO", "LITRO", "MILILITRO", "METRO", "CENTIMETRO", "METRO_CUADRADO", "HORA")
+                .contains(producto.getUnidadMedida()) && linea.cantidad().stripTrailingZeros().scale() > 0)
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La cantidad de '" + producto.getNombreProducto()
                     + "' debe ser un número entero (" + producto.getUnidadMedida() + ")");
     }

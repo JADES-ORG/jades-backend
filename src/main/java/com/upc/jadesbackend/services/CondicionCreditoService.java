@@ -69,7 +69,9 @@ public class CondicionCreditoService {
 
     public ResponseCondicionCrediticiaDTO actualizar(Long tienda, Long idCliente, RequestCondicionCrediticiaDTO dto, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
-        buscarCliente(tienda, idCliente);
+        Cliente cliente = buscarCliente(tienda, idCliente);
+        if (!"ACTIVO".equals(cliente.getEstadoCliente()))
+            throw new NegocioException(HttpStatus.CONFLICT, "No se pueden actualizar condiciones para un cliente inactivo");
         validarReglas(dto);
         CondicionCredito c = condiciones.bloquearPorCliente(idCliente).orElseThrow(() ->
                 new NegocioException(HttpStatus.NOT_FOUND, "Condiciones crediticias no encontradas"));

@@ -11,7 +11,7 @@ public record RequestProductoDTO(
         @NotBlank @Pattern(regexp="PRODUCTO|SERVICIO") String tipoProducto,
         @Size(max=150) String proveedor,
         @Size(max=100) String marca,
-        @NotBlank @Pattern(regexp="UNIDAD|PAQUETE|SERVICIO|SESION|KILOGRAMO") String unidadMedida,
+        @NotBlank @Pattern(regexp="UNIDAD|PAQUETE|SERVICIO|SESION|CAJA|DOCENA|PAR|KILOGRAMO|GRAMO|LITRO|MILILITRO|METRO|CENTIMETRO|METRO_CUADRADO|HORA") String unidadMedida,
         @Size(max=500) String imagenProducto,
         @NotBlank @Pattern(regexp="UNICO|MENSUAL|AMBAS") String modalidad
 ) {}
