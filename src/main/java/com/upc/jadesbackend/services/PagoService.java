@@ -10,6 +10,7 @@ import com.upc.jadesbackend.exceptions.NegocioException;
 import com.upc.jadesbackend.repositories.*;
 import com.upc.jadesbackend.security.principal.UsuarioPrincipal;
 import com.upc.jadesbackend.util.CalculoFinancieroUtil;
+import com.upc.jadesbackend.util.CalendarioCreditoUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -46,15 +49,17 @@ public class PagoService {
     }
 
     @Transactional(readOnly = true)
-    public ResponseLiquidacionDTO consultarImporte(Long idCuota, LocalDate fechaPago, UsuarioPrincipal usuario) {
+    public ResponseLiquidacionDTO consultarImporte(Long idCuota, LocalDate fechaPago, LocalTime horaPago, UsuarioPrincipal usuario) {
         Cuota cuota = buscarCuota(idCuota);
         Credito credito = cuota.getIdCredito();
         validarConsulta(credito, usuario);
-        LocalDate fecha = fechaReferencia(fechaPago);
-        validarFecha(credito, fecha);
-        List<Cuota> pendientes = pendientes(credito, fecha);
+        LocalDateTime momento = fechaReferencia(fechaPago, horaPago);
+        LocalDate fecha = momento.toLocalDate();
+        validarFecha(credito, momento);
+        List<Cuota> pendientes = pendientes(credito, momento);
         validarCuotaIndividual(cuota, credito, pendientes, fecha);
-        return resumen(credito, fecha, List.of(calcularImporte(cuota, credito, fecha, false)));
+        validarHoraCorte(cuota, momento);
+        return resumen(credito, momento, List.of(calcularImporte(cuota, credito, fecha, false)));
     }
 
     @Transactional
@@ -68,6 +73,7 @@ public class PagoService {
         if (existente.isPresent()) {
             Pago anterior = existente.get();
             if (!anterior.getFechaPagoEfectivo().equals(solicitud.fechaPagoEfectivo())
+                    || (solicitud.horaPagoEfectivo() != null && !solicitud.horaPagoEfectivo().truncatedTo(ChronoUnit.SECONDS).equals(anterior.getHoraPagoEfectivo()))
                     || !anterior.getMedioPago().equals(medioPago)
                     || anterior.getTotalExigible().compareTo(solicitud.monto()) != 0) {
                 throw new NegocioException(HttpStatus.CONFLICT, "Esta obligación ya tiene un pago registrado");
@@ -75,42 +81,44 @@ public class PagoService {
             return new RegistroPago(false, construirRespuesta(anterior, credito));
         }
 
-        LocalDate fecha = solicitud.fechaPagoEfectivo();
-        validarFecha(credito, fecha);
-        List<Cuota> pendientes = pendientes(credito, fecha);
+        LocalDateTime momento = fechaReferencia(solicitud.fechaPagoEfectivo(), solicitud.horaPagoEfectivo());
+        LocalDate fecha = momento.toLocalDate();
+        validarFecha(credito, momento);
+        List<Cuota> pendientes = pendientes(credito, momento);
         validarCuotaIndividual(cuota, credito, pendientes, fecha);
+        validarHoraCorte(cuota, momento);
 
         Importe importe = calcularImporte(cuota, credito, fecha, false);
         validarMonto(solicitud.monto(), importe.total(), credito);
-        Pago pago = registrarImporte(credito, importe, fecha, medioPago);
+        Pago pago = registrarImporte(credito, importe, momento, medioPago);
         actualizarCredito(credito, importe.capital(), pendientes.size() == 1);
 
         return new RegistroPago(true, construirRespuesta(pago, credito));
     }
 
     @Transactional(readOnly = true)
-    public ResponseLiquidacionDTO consultarLiquidacion(Long idCredito, LocalDate fechaPago, UsuarioPrincipal usuario) {
+    public ResponseLiquidacionDTO consultarLiquidacion(Long idCredito, LocalDate fechaPago, LocalTime horaPago, UsuarioPrincipal usuario) {
         Credito credito = creditos.findById(idCredito).orElseThrow(() ->
                 new NegocioException(HttpStatus.NOT_FOUND, "Crédito no encontrado"));
         validarConsulta(credito, usuario);
-        LocalDate fecha = fechaReferencia(fechaPago);
-        List<Importe> importes = calcularLiquidacion(credito, fecha);
-        return resumen(credito, fecha, importes);
+        LocalDateTime momento = fechaReferencia(fechaPago, horaPago);
+        List<Importe> importes = calcularLiquidacion(credito, momento);
+        return resumen(credito, momento, importes);
     }
 
     @Transactional
     public ResponseLiquidacionDTO liquidar(Long idCredito, RequestRegistrarPagoDTO solicitud, UsuarioPrincipal usuario) {
         Credito credito = bloquearCredito(idCredito);
         acceso.exigirParaCobro(credito.getIdVenta().getIdCliente().getIdTienda().getId(), usuario);
-        LocalDate fecha = solicitud.fechaPagoEfectivo();
-        List<Importe> importes = calcularLiquidacion(credito, fecha);
-        ResponseLiquidacionDTO resultado = resumen(credito, fecha, importes);
+        LocalDateTime momento = fechaReferencia(solicitud.fechaPagoEfectivo(), solicitud.horaPagoEfectivo());
+        List<Importe> importes = calcularLiquidacion(credito, momento);
+        ResponseLiquidacionDTO resultado = resumen(credito, momento, importes);
         validarMonto(solicitud.monto(), resultado.totalPagar(), credito);
 
         String medio = normalizarMedio(solicitud.medioPago());
         BigDecimal capital = BigDecimal.ZERO;
         for (Importe importe : importes) {
-            registrarImporte(credito, importe, fecha, medio);
+            registrarImporte(credito, importe, momento, medio);
             capital = capital.add(importe.capital());
         }
         actualizarCredito(credito, capital, true);
@@ -137,19 +145,27 @@ public class PagoService {
         }
     }
 
-    private LocalDate fechaReferencia(LocalDate fecha) {
-        return fecha == null ? LocalDate.now(ZONA_PERU) : fecha;
+    private LocalDateTime fechaReferencia(LocalDate fecha, LocalTime hora) {
+        LocalDateTime ahora = LocalDateTime.now(ZONA_PERU).truncatedTo(ChronoUnit.SECONDS);
+        LocalDate dia = fecha == null ? ahora.toLocalDate() : fecha;
+        if (hora == null && !dia.equals(ahora.toLocalDate()))
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "Indica la hora efectiva para un pago de otra fecha");
+        return LocalDateTime.of(dia, hora == null ? ahora.toLocalTime() : hora.truncatedTo(ChronoUnit.SECONDS));
     }
 
-    private void validarFecha(Credito credito, LocalDate fecha) {
+    private void validarFecha(Credito credito, LocalDateTime momento) {
         Venta venta = credito.getIdVenta();
-        if (fecha == null || fecha.isAfter(LocalDate.now(ZONA_PERU)) || fecha.isBefore(venta.getFechaVenta()))
-            throw new NegocioException(HttpStatus.BAD_REQUEST, "La fecha efectiva del pago no es válida");
+        if (momento.isAfter(LocalDateTime.now(ZONA_PERU))
+                || momento.toLocalDate().isBefore(venta.getFechaVenta())
+                || (momento.toLocalDate().equals(venta.getFechaVenta()) && venta.getHoraVenta() != null
+                    && momento.toLocalTime().isBefore(venta.getHoraVenta())))
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "La fecha y hora efectivas del pago no son válidas");
         if ("ANULADA".equalsIgnoreCase(venta.getEstadoVenta()))
             throw new NegocioException(HttpStatus.CONFLICT, "La venta está anulada");
     }
 
-    private List<Cuota> pendientes(Credito credito, LocalDate fecha) {
+    private List<Cuota> pendientes(Credito credito, LocalDateTime momento) {
+        LocalDate fecha = momento.toLocalDate();
         List<Cuota> lista = cuotas.findAllByIdCredito_IdOrderByNumeroCuotaAsc(credito.getId());
         List<Cuota> resultado = new ArrayList<>();
         BigDecimal capitalPendiente = BigDecimal.ZERO;
@@ -157,7 +173,9 @@ public class PagoService {
         for (Cuota cuota : lista) {
             var pago = pagos.findByIdCuota_Id(cuota.getId());
             if (pago.isPresent()) {
-                if (pago.get().getFechaPagoEfectivo().isAfter(fecha))
+                if (pago.get().getFechaPagoEfectivo().isAfter(fecha)
+                        || (pago.get().getFechaPagoEfectivo().equals(fecha) && pago.get().getHoraPagoEfectivo() != null
+                        && pago.get().getHoraPagoEfectivo().isAfter(momento.toLocalTime())))
                     throw new NegocioException(HttpStatus.BAD_REQUEST, "La fecha no puede ser anterior a un pago ya registrado en el crédito");
                 if (!"PAGADA".equals(cuota.getEstadoCuota()))
                     throw new NegocioException(HttpStatus.CONFLICT, "El estado de una cuota no coincide con su pago");
@@ -189,16 +207,26 @@ public class PagoService {
         }
     }
 
-    private List<Importe> calcularLiquidacion(Credito credito, LocalDate fecha) {
-        validarFecha(credito, fecha);
+    private void validarHoraCorte(Cuota cuota, LocalDateTime momento) {
+        LocalDateTime corte = CalendarioCreditoUtil.corteHistoricoCuota(cuota);
+        if (corte == null)
+            throw new NegocioException(HttpStatus.CONFLICT, "Falta el calendario histórico de la obligación");
+        if (corte.toLocalDate().equals(cuota.getFechaVencimiento()) && !momento.isAfter(corte))
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "El pago se habilita después de la hora de corte pactada");
+    }
+
+    private List<Importe> calcularLiquidacion(Credito credito, LocalDateTime momento) {
+        LocalDate fecha = momento.toLocalDate();
+        validarFecha(credito, momento);
         if (!"MENSUAL".equals(credito.getIdVenta().getModalidadPago()))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La liquidación total corresponde a créditos en cuotas");
         if (credito.getFechaPrimerPago() == null || YearMonth.from(fecha).isBefore(YearMonth.from(credito.getFechaPrimerPago())))
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La liquidación está disponible desde el mes de la primera cuota");
 
         List<Importe> resultado = new ArrayList<>();
-        for (Cuota cuota : pendientes(credito, fecha)) {
+        for (Cuota cuota : pendientes(credito, momento)) {
             boolean futura = YearMonth.from(cuota.getFechaVencimiento()).isAfter(YearMonth.from(fecha));
+            if (!futura) validarHoraCorte(cuota, momento);
             resultado.add(calcularImporte(cuota, credito, fecha, futura));
         }
         return resultado;
@@ -229,7 +257,7 @@ public class PagoService {
         return new Importe(cuota, capital, interes, mora.interesMoratorio(), mora.diasAtraso());
     }
 
-    private ResponseLiquidacionDTO resumen(Credito credito, LocalDate fecha, List<Importe> importes) {
+    private ResponseLiquidacionDTO resumen(Credito credito, LocalDateTime momento, List<Importe> importes) {
         BigDecimal capital = BigDecimal.ZERO;
         BigDecimal interes = BigDecimal.ZERO;
         BigDecimal mora = BigDecimal.ZERO;
@@ -244,7 +272,7 @@ public class PagoService {
         }
 
         return new ResponseLiquidacionDTO(credito.getId(), credito.getIdVenta().getId(),
-                credito.getIdVenta().getMonedaVenta(), fecha, capital, interes, mora,
+                credito.getIdVenta().getMonedaVenta(), momento.toLocalDate(), momento.toLocalTime(), capital, interes, mora,
                 capital.add(interes).add(mora), credito.getSaldoCredito().subtract(capital), detalles);
     }
 
@@ -258,7 +286,8 @@ public class PagoService {
         return medioPago.trim().toUpperCase(Locale.ROOT);
     }
 
-    private Pago registrarImporte(Credito credito, Importe importe, LocalDate fecha, String medio) {
+    private Pago registrarImporte(Credito credito, Importe importe, LocalDateTime momento, String medio) {
+        LocalDate fecha = momento.toLocalDate();
         Cuota cuota = importe.cuota();
         BigDecimal restante = importe.total();
         BigDecimal moraPagada = restante.min(importe.mora());
@@ -275,6 +304,7 @@ public class PagoService {
         Pago pago = new Pago();
         pago.setIdCuota(cuota);
         pago.setFechaPagoEfectivo(fecha);
+        pago.setHoraPagoEfectivo(momento.toLocalTime());
         pago.setFechaCancelacion(fecha);
         pago.setDiasAtraso(Math.toIntExact(importe.diasAtraso()));
         pago.setMedioPago(medio);
@@ -303,7 +333,7 @@ public class PagoService {
         return new ResponsePagoDTO(
                 pago.getId(), cuota.getId(), credito.getId(), credito.getIdVenta().getId(),
                 credito.getCodigoCredito(), credito.getIdVenta().getMonedaVenta(),
-                cuota.getFechaVencimiento(), pago.getFechaPagoEfectivo(), pago.getDiasAtraso(),
+                cuota.getFechaVencimiento(), pago.getFechaPagoEfectivo(), pago.getHoraPagoEfectivo(), pago.getDiasAtraso(),
                 pago.getMedioPago(), pago.getMoraPagada(), pago.getInteresPagado(),
                 pago.getCapitalPagado(), pago.getTotalExigible(), credito.getSaldoCredito(),
                 cuota.getEstadoCuota(), credito.getEstadoCredito());

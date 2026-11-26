@@ -1,0 +1,10 @@
+BEGIN;
+
+ALTER TABLE detalle_venta
+    ADD COLUMN IF NOT EXISTS nombre_producto VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS unidad_medida VARCHAR(30);
+
+ALTER TABLE pago
+    ADD COLUMN IF NOT EXISTS hora_pago_efectivo TIME WITHOUT TIME ZONE;
+
+COMMIT;

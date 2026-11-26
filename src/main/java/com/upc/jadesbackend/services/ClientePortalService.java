@@ -109,7 +109,7 @@ public class ClientePortalService {
 
         List<ResponseCuentaCorrienteDTO.PagoRegistrado> pagosDTO = listaPagos.stream().map(p ->
                 new ResponseCuentaCorrienteDTO.PagoRegistrado(p.getId(), p.getIdCuota().getId(),
-                        p.getFechaPagoEfectivo(), p.getFechaCancelacion(), p.getMedioPago(),
+                        p.getFechaPagoEfectivo(), p.getHoraPagoEfectivo(), p.getFechaCancelacion(), p.getMedioPago(),
                         p.getDiasAtraso(), nvl(p.getCapitalPagado()), nvl(p.getInteresPagado()),
                         nvl(p.getMoraPagada()), nvl(p.getTotalExigible()), p.getEstadoPago(),
                         p.getIdCuota().getIdCredito().getIdVenta().getId(), p.getIdCuota().getNumeroCuota(),

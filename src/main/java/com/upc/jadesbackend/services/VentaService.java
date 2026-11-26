@@ -120,6 +120,8 @@ public class VentaService {
 
             DetalleVenta detalle = new DetalleVenta();
             detalle.setIdProducto(producto);
+            detalle.setNombreProducto(producto.getNombreProducto());
+            detalle.setUnidadMedida(producto.getUnidadMedida());
             detalle.setCantidad(linea.cantidad());
             detalle.setPrecioUnitario(producto.getPrecioCredito());   // precio a crédito vigente al momento de la venta
             detalle.setSubtotal(producto.getPrecioCredito().multiply(linea.cantidad()).setScale(2, RoundingMode.HALF_UP));

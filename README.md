@@ -56,7 +56,7 @@ Si no tienes PostgreSQL, puedes levantarlo con Docker:
 docker run --name jades-postgres -e POSTGRES_DB=bd_JADES -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
 ```
 
-Hibernate valida el esquema existente. Para incorporar las condiciones históricas, el repositorio incluye `docs/credito_condiciones_aplicadas.sql`. Es una ampliación manual del esquema que deja vacíos los campos de créditos anteriores. El backend no ejecuta el script ni carga datos al iniciar.
+La configuración de desarrollo utiliza `spring.jpa.hibernate.ddl-auto=update`. Antes de iniciar sobre una base existente, se puede ejecutar `sql/actualizar_historial.sql` para agregar las columnas de hora efectiva del pago y datos históricos del producto. El script no elimina registros ni inventa valores anteriores; las columnas nuevas quedan nulas para operaciones antiguas cuya información original se desconoce. Para las pruebas finales se recomienda una base limpia, sin borrar la existente. La carga de `src/main/resources/insert.sql` es manual y opcional.
 
 ### 2. Variables de entorno
 Configura `DB_PASSWORD` y `JWT_SECRET` mediante variables de entorno también en desarrollo. El secreto JWT debe tener al menos 32 bytes y ser exclusivo de cada entorno. Las demás variables tienen los siguientes valores predeterminados:
@@ -96,6 +96,8 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 - En créditos mensuales se paga la cuota pendiente más antigua. Se permite adelantarla dentro de su mes de vencimiento, por su importe programado.
 - Desde el mes de la primera cuota, se puede liquidar todo el crédito: las cuotas vencidas y las del mes incluyen interés pactado y mora cuando corresponda; las cuotas de meses futuros se cancelan por su amortización de capital.
 - No se permiten meses adicionales de gracia para ventas nuevas o simulaciones. La gracia total obligatoria y los cronogramas históricos se conservan.
+- Las ventas nuevas guardan el nombre y la unidad de medida del producto en `detalle_venta`. El historial no consulta esos datos en el catálogo vigente.
+- Las cabeceras de cortes se construyen con las fechas históricas del ciclo, no con las condiciones vigentes del cliente. `calendariosMultiples` indica fechas diferentes y `calendarioIncompleto` señala información no disponible; cada obligación conserva sus fechas individuales.
 - El historial de cortes distingue obligaciones pendientes de pagos registrados; incluye los pagos del ciclo pactado o del mes del pago efectivo. Sus totales de pagos no son un reporte de ingresos acumulable entre cortes.
 
 | Método | Endpoint | Uso |
@@ -105,7 +107,7 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 | GET | `/api/v1/pagos/creditos/{idCredito}/liquidacion?fechaPagoEfectivo=AAAA-MM-DD` | Cotizar la liquidación de todas las cuotas pendientes |
 | POST | `/api/v1/pagos/creditos/{idCredito}/liquidacion` | Registrar la liquidación total en una transacción |
 
-Los POST reciben `monto`, `fechaPagoEfectivo` y `medioPago`. Las consultas usan la fecha actual si no se indica otra. El administrador registra pagos y el cliente solo consulta sus propios datos. El cronograma original permanece intacto; los importes efectivamente cobrados se consultan en los pagos.
+Los POST reciben `monto`, `fechaPagoEfectivo` (AAAA-MM-DD), `horaPagoEfectivo` (HH:mm:ss) y `medioPago`. Los GET aceptan los parámetros opcionales `fechaPagoEfectivo` y `horaPagoEfectivo`. Si la fecha es hoy y se omite la hora, se utiliza la hora actual del servidor en Lima; para fechas anteriores se debe indicar la hora efectiva. No se aceptan momentos futuros ni anteriores a la compra. Si el corte y el vencimiento histórico coinciden por ajuste al último día del mes, el pago de esa obligación se permite estrictamente después de la hora de corte. Los demás pagos anticipados mantienen sus reglas. El administrador registra pagos y el cliente solo consulta sus propios datos. El cronograma original permanece intacto; los importes efectivamente cobrados se consultan en los pagos.
 
 ### 5. Ejecutar pruebas
 Las pruebas funcionales y financieras se realizarán manualmente mediante Swagger o Postman al finalizar las correcciones.
