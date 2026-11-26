@@ -56,7 +56,7 @@ Si no tienes PostgreSQL, puedes levantarlo con Docker:
 docker run --name jades-postgres -e POSTGRES_DB=bd_JADES -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
 ```
 
-La configuración de desarrollo utiliza `spring.jpa.hibernate.ddl-auto=update`. Antes de iniciar sobre una base existente, se puede ejecutar `sql/actualizar_historial.sql` para agregar las columnas de hora efectiva del pago y datos históricos del producto. El script no elimina registros ni inventa valores anteriores; las columnas nuevas quedan nulas para operaciones antiguas cuya información original se desconoce. Para las pruebas finales se recomienda una base limpia, sin borrar la existente. La carga de `src/main/resources/insert.sql` es manual y opcional.
+La configuración de desarrollo utiliza `spring.jpa.hibernate.ddl-auto=update`. Hibernate actualiza el esquema a partir de las entidades JPA al iniciar; las columnas nuevas quedan nulas para operaciones antiguas cuya información original se desconoce. Para las pruebas finales se recomienda una base limpia, sin borrar la existente. La carga de `src/main/resources/insert.sql` es manual y opcional.
 
 ### 2. Variables de entorno
 Configura `DB_PASSWORD` y `JWT_SECRET` mediante variables de entorno también en desarrollo. El secreto JWT debe tener al menos 32 bytes y ser exclusivo de cada entorno. Las demás variables tienen los siguientes valores predeterminados:
