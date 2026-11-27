@@ -67,7 +67,10 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, error) ->
                                 response.sendError(HttpServletResponse.SC_FORBIDDEN, "Acceso denegado")))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/v1/autenticacion/iniciar-sesion").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/autenticacion/iniciar-sesion",
+                                "/api/v1/autenticacion/recuperar-contrasena",
+                                "/api/v1/autenticacion/verificar-codigo",
+                                "/api/v1/autenticacion/restablecer-contrasena").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
                         .permitAll()
                         .anyRequest().authenticated())
