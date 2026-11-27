@@ -47,4 +47,11 @@ public class TiendaController {
                                             @AuthenticationPrincipal UsuarioPrincipal principal) {
         return servicio.desactivar(id, principal);
     }
+
+    @PatchMapping("/{id}/reactivar")
+    @PreAuthorize("hasRole('ADMIN_SISTEMA')")
+    public ResponseTiendaResumenDTO reactivar(@PathVariable Long id,
+                                              @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.reactivar(id, principal);
+    }
 }

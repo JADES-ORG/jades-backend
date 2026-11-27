@@ -9,6 +9,7 @@ import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Getter
 @Setter
@@ -28,6 +29,9 @@ public class Pago {
     @NotNull
     @Column(name = "fecha_pago_efectivo", nullable = false)
     private LocalDate fechaPagoEfectivo;
+
+    @Column(name = "hora_pago_efectivo")
+    private LocalTime horaPagoEfectivo;
 
     @NotNull
     @ColumnDefault("0")

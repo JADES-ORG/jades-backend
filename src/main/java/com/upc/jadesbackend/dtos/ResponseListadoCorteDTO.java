@@ -22,6 +22,8 @@ public record ResponseListadoCorteDTO(
         LocalDate fechaCorteActual,
         LocalTime horaCorte,
         LocalDate fechaLimitePago,
+        boolean calendariosMultiples,
+        boolean calendarioIncompleto,
         String moneda,
         ResumenCorte resumen,
         List<CompraCiclo> compras,
@@ -51,6 +53,8 @@ public record ResponseListadoCorteDTO(
             Long idCredito,
             String codigoCredito,
             BigDecimal interesEstimado,
+            LocalDateTime fechaCorteAsignada,
+            LocalDate fechaPagoAsignada,
             List<ResponseVentaDTO.Detalle> detalles
     ) {}
 
@@ -85,6 +89,7 @@ public record ResponseListadoCorteDTO(
             LocalDateTime fechaCorteObligacion,
             LocalDate fechaPagoPactada,
             LocalDate fechaPagoEfectivo,
+            LocalTime horaPagoEfectivo,
             String medioPago,
             Integer diasAtraso,
             BigDecimal capitalPagado,

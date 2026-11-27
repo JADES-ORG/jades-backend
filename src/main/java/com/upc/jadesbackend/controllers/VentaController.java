@@ -2,6 +2,7 @@ package com.upc.jadesbackend.controllers;
 
 import com.upc.jadesbackend.dtos.RequestVentaDTO;
 import com.upc.jadesbackend.dtos.ResponseVentaDTO;
+import com.upc.jadesbackend.dtos.ResponseSimulacionVentaDTO;
 import com.upc.jadesbackend.security.principal.UsuarioPrincipal;
 import com.upc.jadesbackend.services.VentaService;
 import jakarta.validation.Valid;
@@ -27,6 +28,12 @@ public class VentaController {
                                                       @AuthenticationPrincipal UsuarioPrincipal usuario) {
         var resultado = servicio.registrar(tienda, dto, usuario, claveIdempotencia);
         return ResponseEntity.created(URI.create("/api/v1/tiendas/" + tienda + "/ventas/" + resultado.id())).body(resultado);
+    }
+
+    @PostMapping("/simular")
+    public ResponseSimulacionVentaDTO simular(@PathVariable Long tienda, @Valid @RequestBody RequestVentaDTO dto,
+                                               @AuthenticationPrincipal UsuarioPrincipal usuario) {
+        return servicio.simular(tienda, dto, usuario);
     }
 
     @GetMapping

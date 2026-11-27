@@ -252,7 +252,7 @@ public class CronogramaService {
         ResultadoCronograma r = plan.cronograma();
         List<ResponseCronogramaDTO.CuotaCronograma> filas = r.filas().stream()
                 .map(f -> new ResponseCronogramaDTO.CuotaCronograma(f.numeroCuota(), plan.vencimiento(f.numeroCuota()),
-                        f.saldoInicial(), f.interes(), f.amortizacion(), f.cuota(), f.saldoFinal(), ESTADO_CUOTA_INICIAL, null, null, null, null, null, null))
+                        f.saldoInicial(), f.interes(), f.amortizacion(), f.cuota(), f.saldoFinal(), ESTADO_CUOTA_INICIAL, null, null, null, null, null, null, null))
                 .toList();
         BigDecimal capitalVenta = CalculoFinancieroUtil.redondearMoneda(plan.capitalVenta());
 
@@ -271,6 +271,7 @@ public class CronogramaService {
                             c.getSaldoInicial(), c.getInteresCuota(), c.getAmortizacion(), c.getImporte(),
                             c.getSaldoFinal(), c.getEstadoCuota(), c.getId(),
                             pago == null ? null : pago.getFechaPagoEfectivo(),
+                            pago == null ? null : pago.getHoraPagoEfectivo(),
                             pago == null ? null : pago.getCapitalPagado(),
                             pago == null ? null : pago.getInteresPagado(),
                             pago == null ? null : pago.getMoraPagada(),

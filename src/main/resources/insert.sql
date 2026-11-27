@@ -120,8 +120,8 @@ VALUES (cliente_demo, usuario_admin, caso.fecha_compra, TIME '12:00:00', caso.mo
         'jades-demo-2026-' || caso.alias_cliente)
     RETURNING id_venta INTO venta_demo;
 
-INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, subtotal)
-VALUES (venta_demo, producto_demo, 1, caso.precio_credito, caso.precio_credito);
+INSERT INTO detalle_venta (id_venta, id_producto, nombre_producto, unidad_medida, cantidad, precio_unitario, subtotal)
+VALUES (venta_demo, producto_demo, caso.producto, 'UNIDAD', 1, caso.precio_credito, caso.precio_credito);
 END LOOP;
 END;
 $jades_demo$;

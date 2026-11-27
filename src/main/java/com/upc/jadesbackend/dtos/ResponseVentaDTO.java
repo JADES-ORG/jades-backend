@@ -40,8 +40,8 @@ public record ResponseVentaDTO(
             return new Detalle(
                     d.getId(),
                     d.getIdProducto().getId(),
-                    d.getIdProducto().getNombreProducto(),
-                    d.getIdProducto().getUnidadMedida(),
+                    d.getNombreProducto(),
+                    d.getUnidadMedida(),
                     d.getCantidad(),
                     d.getPrecioUnitario(),
                     d.getSubtotal());

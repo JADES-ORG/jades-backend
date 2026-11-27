@@ -2,6 +2,7 @@ package com.upc.jadesbackend.dtos;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 /** Cronograma del crédito (HU-12): resumen financiero + tabla de cuotas. */
@@ -37,6 +38,7 @@ public record ResponseCronogramaDTO(
             String estado,
             Long idCuota,
             LocalDate fechaPagoEfectivo,
+            LocalTime horaPagoEfectivo,
             BigDecimal capitalPagado,
             BigDecimal interesPagado,
             BigDecimal moraPagada,

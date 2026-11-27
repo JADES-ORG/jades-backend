@@ -29,4 +29,6 @@ public class ClienteController {
     public ResponseClienteDTO actualizar(@PathVariable Long tienda, @PathVariable Long id, @Valid @RequestBody RequestClienteDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.actualizar(tienda, id, dto, usuario); }
     @PatchMapping("/{id}/desactivar")
     public ResponseClienteDTO desactivar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.desactivar(tienda, id, usuario); }
+    @PatchMapping("/{id}/reactivar")
+    public ResponseClienteDTO reactivar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.reactivar(tienda, id, usuario); }
 }

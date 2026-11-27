@@ -20,17 +20,28 @@ import org.springframework.web.multipart.MultipartFile;
 @PreAuthorize("hasRole('ADMIN_NEGOCIO')")
 public class ProductoController {
     private final ProductoService servicio;
-    @PostMapping
-    public ResponseEntity<ResponseProductoDTO> registrar(@PathVariable Long tienda, @Valid @RequestBody RequestProductoDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) {
-        var resultado = servicio.registrar(tienda, dto, usuario);
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseProductoDTO> registrar(@PathVariable Long tienda,
+            @Valid @RequestPart("producto") RequestProductoDTO dto,
+            @RequestPart("archivo") MultipartFile archivo,
+            @AuthenticationPrincipal UsuarioPrincipal usuario) {
+        var resultado = servicio.registrar(tienda, dto, archivo, usuario);
         return ResponseEntity.created(URI.create("/api/v1/tiendas/" + tienda + "/productos/" + resultado.id())).body(resultado);
     }
     @GetMapping
     public List<ResponseProductoDTO> listar(@PathVariable Long tienda, @RequestParam(defaultValue="true") boolean soloActivos, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.listar(tienda, soloActivos, usuario); }
     @GetMapping("/{id}")
     public ResponseProductoDTO consultar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.consultar(tienda, id, usuario); }
-    @PutMapping("/{id}")
-    public ResponseProductoDTO actualizar(@PathVariable Long tienda, @PathVariable Long id, @Valid @RequestBody RequestProductoDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.actualizar(tienda, id, dto, usuario); }
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseProductoDTO actualizar(@PathVariable Long tienda, @PathVariable Long id, @Valid @RequestBody RequestProductoDTO dto, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.actualizar(tienda, id, dto, null, usuario); }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseProductoDTO actualizarConImagen(@PathVariable Long tienda, @PathVariable Long id,
+            @Valid @RequestPart("producto") RequestProductoDTO dto,
+            @RequestPart(value = "archivo", required = false) MultipartFile archivo,
+            @AuthenticationPrincipal UsuarioPrincipal usuario) {
+        return servicio.actualizar(tienda, id, dto, archivo, usuario);
+    }
     @PatchMapping("/{id}/desactivar")
     public ResponseProductoDTO desactivar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.desactivar(tienda, id, usuario); }
 

@@ -40,7 +40,6 @@ import java.util.*;
 public class FacturacionCorteService {
 
     public static final ZoneId ZONA_PERU = ZoneId.of("America/Lima");
-    private static final LocalTime HORA_CORTE_DEFECTO = LocalTime.of(18, 0);
 
     private final ClienteRepositorio clientes;
     private final CondicionCreditoRepositorio condiciones;
@@ -148,49 +147,41 @@ public class FacturacionCorteService {
                 .orElseThrow(() -> new NegocioException(HttpStatus.CONFLICT,
                         "El cliente no tiene condiciones de crédito configuradas"));
 
-        int diaCorte = condicion.getDiaCorte();
-        int diaPago = condicion.getDiaPago();
-        LocalTime horaCorte = condicion.getHoraCorte() != null ? condicion.getHoraCorte() : HORA_CORTE_DEFECTO;
-
         List<Venta> todasVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaAscHoraVentaAsc(cliente.getId());
         String moneda = null;
-        LocalDate corteActual = CalendarioCreditoUtil.fechaEnMes(ciclo, diaCorte);
-        LocalDate corteAnterior = CalendarioCreditoUtil.fechaEnMes(ciclo.minusMonths(1), diaCorte);
-        LocalDate fechaLimitePago = CalendarioCreditoUtil.fechaFinGracia(corteActual, diaCorte, diaPago, 0);
 
         String nombreTienda = cliente.getIdTienda() != null ? cliente.getIdTienda().getNombreTienda() : "Tienda";
 
         // 1. Compras ordenadas cronológicamente
         List<CompraCiclo> comprasCiclo = new ArrayList<>();
         BigDecimal totalCompras = BigDecimal.ZERO;
-        Set<LocalDate> fechasCorteHistoricas = new HashSet<>();
-        Set<LocalTime> horasCorteHistoricas = new HashSet<>();
+        Set<LocalDateTime> cortesHistoricos = new HashSet<>();
+        Set<LocalDate> cortesAnteriores = new HashSet<>();
+        Set<LocalDate> vencimientosDelCiclo = new HashSet<>();
 
         for (Venta v : todasVentas) {
             if ("ANULADA".equalsIgnoreCase(v.getEstadoVenta()) || v.getFechaVenta().isAfter(fechaRef)) {
                 continue;
             }
 
-            //permite que las ventas nuevas utilicen su ciclo guardado y que las antiguas,
-            // que todavía tienen fechas nulas, sigan funcionando con la lógica anterior.
-            boolean pertenece = v.getFechaCorteAsignada() != null
-                    ? YearMonth.from(v.getFechaCorteAsignada()).equals(ciclo)
-                    : perteneceAlCiclo(
-                    v.getFechaVenta(),
-                    v.getHoraVenta(),
-                    corteAnterior,
-                    corteActual,
-                    horaCorte
-            );
+            Optional<Credito> credOpt = creditos.findByIdVenta_Id(v.getId());
+            Credito creditoVenta = credOpt.orElse(null);
+            LocalDateTime corteVenta = CalendarioCreditoUtil.corteHistoricoVenta(v, creditoVenta);
+            if (corteVenta == null)
+                throw new NegocioException(HttpStatus.CONFLICT, "Falta la fecha de corte histórica de la venta " + v.getId());
+            boolean pertenece = YearMonth.from(corteVenta).equals(ciclo);
 
             if (pertenece) {
                 if (moneda == null) moneda = v.getMonedaVenta();
                 validarMoneda(moneda, v);
-                if (v.getFechaCorteAsignada() != null) {
-                    fechasCorteHistoricas.add(v.getFechaCorteAsignada().toLocalDate());
-                    horasCorteHistoricas.add(v.getFechaCorteAsignada().toLocalTime());
-                }
-                Optional<Credito> credOpt = creditos.findByIdVenta_Id(v.getId());
+                CondicionesAplicadas pacto = creditoVenta == null ? null : creditoVenta.getCondicionesAplicadas();
+                LocalDate pagoCiclo = "UNICO".equals(v.getModalidadPago()) ? v.getFechaPagoAsignada()
+                        : pacto != null && pacto.getDiaCorte() != null && pacto.getDiaPago() != null
+                            ? CalendarioCreditoUtil.fechaFinGracia(corteVenta.toLocalDate(), pacto.getDiaCorte(), pacto.getDiaPago(), 0)
+                            : null;
+                if (pagoCiclo == null && "UNICO".equals(v.getModalidadPago()) && creditoVenta != null)
+                    pagoCiclo = creditoVenta.getFechaPrimerPago();
+                registrarCalendario(cortesHistoricos, cortesAnteriores, vencimientosDelCiclo, corteVenta, pacto, pagoCiclo);
                 Long idCredito = credOpt.map(Credito::getId).orElse(null);
                 String codigoCredito = credOpt.map(Credito::getCodigoCredito).orElse(null);
                 BigDecimal interesEstimado = credOpt.map(c ->
@@ -208,6 +199,8 @@ public class FacturacionCorteService {
                         idCredito,
                         codigoCredito,
                         interesEstimado,
+                        corteVenta,
+                        v.getFechaPagoAsignada() != null ? v.getFechaPagoAsignada() : creditoVenta == null ? null : creditoVenta.getFechaPrimerPago(),
                         detallesVenta(v)
                 ));
                 totalCompras = totalCompras.add(v.getTotalVenta());
@@ -234,7 +227,6 @@ public class FacturacionCorteService {
         BigDecimal totalMora = BigDecimal.ZERO;
         BigDecimal totalExigible = BigDecimal.ZERO;
         int cuotasEnMoraCount = 0;
-        Set<LocalDate> vencimientosDelCiclo = new HashSet<>();
 
         for (Cuota c : todasCuotas) {
             Credito cred = c.getIdCredito();
@@ -244,17 +236,19 @@ public class FacturacionCorteService {
             LocalDate venc = c.getFechaVencimiento();
             Pago pago = pagosPorCuota.get(c.getId());
             if (pago != null) {
-                YearMonth cicloObligacion = cicloHistoricoCuota(c);
+                YearMonth cicloObligacion = CalendarioCreditoUtil.cicloHistoricoCuota(c);
                 boolean pertenece = ciclo.equals(cicloObligacion)
                         || ciclo.equals(YearMonth.from(pago.getFechaPagoEfectivo()));
                 if (pertenece) {
                     if (moneda == null) moneda = v.getMonedaVenta();
                     validarMoneda(moneda, v);
-                    if (ciclo.equals(cicloObligacion)) vencimientosDelCiclo.add(venc);
+                    if (ciclo.equals(cicloObligacion))
+                        registrarCalendario(cortesHistoricos, cortesAnteriores, vencimientosDelCiclo,
+                                CalendarioCreditoUtil.corteHistoricoCuota(c), cred.getCondicionesAplicadas(), venc);
                     historial.add(new PagoRegistrado(
                             pago.getId(), c.getId(), cred.getId(), v.getId(),
                             cred.getCodigoCredito(), v.getModalidadPago(), c.getNumeroCuota(),
-                            v.getFechaVenta(), fechaCorteCuota(c), venc, pago.getFechaPagoEfectivo(),
+                            v.getFechaVenta(), CalendarioCreditoUtil.corteHistoricoCuota(c), venc, pago.getFechaPagoEfectivo(), pago.getHoraPagoEfectivo(),
                             pago.getMedioPago(), pago.getDiasAtraso(), pago.getCapitalPagado(),
                             pago.getInteresPagado(), pago.getMoraPagada(), pago.getTotalExigible(),
                             cred.getSaldoCredito(), saldoAlCierrePago(cred, pago.getFechaPagoEfectivo(), todosPagos),
@@ -265,7 +259,9 @@ public class FacturacionCorteService {
             }
 
             if (esExigibleEnCiclo(c, ciclo)) {
-                if (!esExigibleEnCiclo(c, ciclo.minusMonths(1))) vencimientosDelCiclo.add(venc);
+                if (ciclo.equals(CalendarioCreditoUtil.cicloHistoricoCuota(c)))
+                    registrarCalendario(cortesHistoricos, cortesAnteriores, vencimientosDelCiclo,
+                            CalendarioCreditoUtil.corteHistoricoCuota(c), cred.getCondicionesAplicadas(), venc);
 
                 if (moneda == null) moneda = v.getMonedaVenta();
                 validarMoneda(moneda, v);
@@ -286,7 +282,7 @@ public class FacturacionCorteService {
                         moraDto.totalExigible(),
                         moraDto.estadoCuota(),
                         moraDto.enMora(),
-                        fechaCorteCuota(c),
+                        CalendarioCreditoUtil.corteHistoricoCuota(c),
                         detallesVenta(v)
                 ));
 
@@ -301,7 +297,9 @@ public class FacturacionCorteService {
             }
         }
 
-        historial.sort(Comparator.comparing(PagoRegistrado::fechaPagoEfectivo).thenComparing(PagoRegistrado::idPago));
+        historial.sort(Comparator.comparing(PagoRegistrado::fechaPagoEfectivo)
+                .thenComparing(PagoRegistrado::horaPagoEfectivo, Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing(PagoRegistrado::idPago));
         ResumenCorte resumen = new ResumenCorte(
                 CalculoFinancieroUtil.redondearMoneda(totalCompras),
                 CalculoFinancieroUtil.redondearMoneda(totalCapital),
@@ -315,15 +313,12 @@ public class FacturacionCorteService {
                 historial.size()
         );
 
-        if (fechasCorteHistoricas.size() == 1) {
-            corteActual = fechasCorteHistoricas.iterator().next();
-            corteAnterior = null; // Sin pacto histórico completo no es seguro reconstruir el corte anterior.
-            if (horasCorteHistoricas.size() == 1) horaCorte = horasCorteHistoricas.iterator().next();
-        } else if (fechasCorteHistoricas.size() > 1) {
-            corteActual = null;
-            corteAnterior = null;
-            horaCorte = null; // No existe una cabecera única para calendarios históricos diferentes.
-        }
+        LocalDateTime corteUnico = valorUnico(cortesHistoricos);
+        boolean calendariosMultiples = cortesHistoricos.stream().filter(Objects::nonNull).count() > 1
+                || vencimientosDelCiclo.stream().filter(Objects::nonNull).count() > 1
+                || cortesAnteriores.stream().filter(Objects::nonNull).count() > 1;
+        boolean calendarioIncompleto = cortesHistoricos.contains(null) || vencimientosDelCiclo.contains(null)
+                || cortesAnteriores.contains(null);
         if (moneda == null) moneda = condicion.getMonedaCredito() == null ? "PEN" : condicion.getMonedaCredito();
 
         return new ResponseListadoCorteDTO(
@@ -333,10 +328,12 @@ public class FacturacionCorteService {
                 cliente.getIdTienda().getId(),
                 nombreTienda,
                 ciclo.toString(),
-                corteAnterior,
-                corteActual,
-                horaCorte,
-                vencimientosDelCiclo.size() > 1 ? null : vencimientosDelCiclo.stream().findFirst().orElse(fechaLimitePago),
+                valorUnico(cortesAnteriores),
+                corteUnico == null ? null : corteUnico.toLocalDate(),
+                corteUnico == null ? null : corteUnico.toLocalTime(),
+                valorUnico(vencimientosDelCiclo),
+                calendariosMultiples,
+                calendarioIncompleto,
                 moneda,
                 resumen,
                 comprasCiclo,
@@ -357,55 +354,24 @@ public class FacturacionCorteService {
         return venta.getDetalles().stream().map(ResponseVentaDTO.Detalle::de).toList();
     }
 
-    private YearMonth cicloHistoricoCuota(Cuota cuota) {
-        Credito credito = cuota.getIdCredito();
-        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
-        YearMonth vencimiento = YearMonth.from(cuota.getFechaVencimiento());
-        if (pacto != null && pacto.getDiaPago() != null && pacto.getDiaCorte() != null) {
-            return pacto.getDiaPago() <= pacto.getDiaCorte() ? vencimiento.minusMonths(1) : vencimiento;
-        }
-        Venta venta = credito.getIdVenta();
-        if (credito.getFechaCorte() == null || credito.getFechaPrimerPago() == null) return null;
-        int meses = "MENSUAL".equals(venta.getModalidadPago())
-                ? 1 + Objects.requireNonNullElse(venta.getGraciaAdicional(), 0) : 0;
-        YearMonth corteOriginal = YearMonth.from(credito.getFechaCorte().atZone(ZONA_PERU));
-        YearMonth pagoOriginal = YearMonth.from(credito.getFechaPrimerPago()).minusMonths(meses);
-        if (pagoOriginal.equals(corteOriginal)) return vencimiento;
-        if (pagoOriginal.equals(corteOriginal.plusMonths(1))) return vencimiento.minusMonths(1);
-        return null;
+    private void registrarCalendario(Set<LocalDateTime> cortes, Set<LocalDate> anteriores,
+                                     Set<LocalDate> vencimientos, LocalDateTime corte,
+                                     CondicionesAplicadas pacto, LocalDate vencimiento) {
+        cortes.add(corte);
+        anteriores.add(corte != null && pacto != null && pacto.getDiaCorte() != null
+                ? CalendarioCreditoUtil.fechaEnMes(YearMonth.from(corte).minusMonths(1), pacto.getDiaCorte()) : null);
+        vencimientos.add(vencimiento);
     }
 
-    private LocalDateTime fechaCorteCuota(Cuota cuota) {
-        Credito credito = cuota.getIdCredito();
-        Venta venta = credito.getIdVenta();
-        if ("UNICO".equals(venta.getModalidadPago())) return venta.getFechaCorteAsignada();
-        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
-        YearMonth ciclo = cicloHistoricoCuota(cuota);
-        if (pacto == null || pacto.getDiaCorte() == null || ciclo == null || venta.getFechaCorteAsignada() == null)
-            return null;
-        return LocalDateTime.of(CalendarioCreditoUtil.fechaEnMes(ciclo, pacto.getDiaCorte()),
-                venta.getFechaCorteAsignada().toLocalTime());
+    private static <T> T valorUnico(Set<T> valores) {
+        return valores.size() == 1 ? valores.iterator().next() : null;
     }
 
     boolean esExigibleEnCiclo(Cuota cuota, YearMonth ciclo) {
-        Credito credito = cuota.getIdCredito();
-        CondicionesAplicadas pacto = credito.getCondicionesAplicadas();
-        YearMonth mesVencimiento = YearMonth.from(cuota.getFechaVencimiento());
-        if (pacto != null && pacto.getDiaPago() != null && pacto.getDiaCorte() != null) {
-            YearMonth mesCorte = pacto.getDiaPago() <= pacto.getDiaCorte()
-                    ? mesVencimiento.minusMonths(1) : mesVencimiento;
-            return !mesCorte.isAfter(ciclo);
-        }
-        if (mesVencimiento.compareTo(ciclo) <= 0) return true;
-        if (mesVencimiento.isAfter(ciclo.plusMonths(1))) return false;
-        Venta venta = credito.getIdVenta();
-        if (credito.getFechaCorte() == null || credito.getFechaPrimerPago() == null)
+        YearMonth cicloCuota = CalendarioCreditoUtil.cicloHistoricoCuota(cuota);
+        if (cicloCuota == null)
             throw new NegocioException(HttpStatus.CONFLICT, "Falta el calendario histórico de la cuota " + cuota.getId());
-        int meses = "MENSUAL".equals(venta.getModalidadPago())
-                ? 1 + Objects.requireNonNullElse(venta.getGraciaAdicional(), 0) : 0;
-        YearMonth corteOriginal = YearMonth.from(credito.getFechaCorte().atZone(ZONA_PERU));
-        YearMonth pagoOriginal = YearMonth.from(credito.getFechaPrimerPago()).minusMonths(meses);
-        return pagoOriginal.equals(corteOriginal.plusMonths(1));
+        return !cicloCuota.isAfter(ciclo);
     }
 
     private void validarMoneda(String moneda, Venta venta) {

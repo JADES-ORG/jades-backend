@@ -12,6 +12,7 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -23,6 +24,7 @@ public class ImagenProductoStorage {
 
     private static final long MAX_BYTES = 5L * 1024 * 1024;
     private static final long MAX_PIXELES = 20_000_000L;
+    private static final long MAX_BYTES_PNG = 20L * 1024 * 1024;
 
     private final Path directorio;
     private final String baseUrl;
@@ -66,8 +68,8 @@ public class ImagenProductoStorage {
         BufferedImage imagen;
 
         // Comprueba el contenido real, no solo la extensión o el Content-Type.
-        try (ImageInputStream entrada =
-                     ImageIO.createImageInputStream(archivo.getInputStream())) {
+        try (InputStream flujo = archivo.getInputStream();
+             ImageInputStream entrada = ImageIO.createImageInputStream(flujo)) {
 
             if (entrada == null) {
                 throw imagenInvalida();
@@ -111,7 +113,7 @@ public class ImagenProductoStorage {
             } finally {
                 lector.dispose();
             }
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException | IndexOutOfBoundsException e) {
             throw imagenInvalida();
         }
 
@@ -127,6 +129,11 @@ public class ImagenProductoStorage {
                 throw new IOException("No hay codificador PNG disponible");
             }
 
+            if (Files.size(destino) > MAX_BYTES_PNG) {
+                eliminar(nombre);
+                throw new NegocioException(HttpStatus.CONTENT_TOO_LARGE,
+                        "La imagen procesada no debe superar los 20 MB");
+            }
             return nombre;
         } catch (IOException e) {
             eliminar(nombre);
@@ -146,6 +153,8 @@ public class ImagenProductoStorage {
         }
 
         try {
+            if (Files.size(archivo) > MAX_BYTES_PNG)
+                throw new NegocioException(HttpStatus.CONTENT_TOO_LARGE, "La imagen almacenada supera los 20 MB");
             return new ByteArrayResource(Files.readAllBytes(archivo));
         } catch (IOException e) {
             throw new NegocioException(
@@ -169,11 +178,25 @@ public class ImagenProductoStorage {
         // Se compara la ruta para permitir cambiar el dominio al desplegar.
         try {
             return urlGuardada != null
-                    && java.net.URI.create(urlGuardada).getPath()
-                    .equals(java.net.URI.create(
-                            url(tienda, producto, nombre)).getPath());
+                    && java.net.URI.create(url(tienda, producto, nombre)).getPath()
+                    .equals(java.net.URI.create(urlGuardada).getPath());
         } catch (IllegalArgumentException e) {
             return false;
+        }
+    }
+
+    public String nombreGuardado(String urlGuardada, Long tienda, Long producto) {
+        if (urlGuardada == null || urlGuardada.isBlank()) return null;
+        try {
+            var uri = java.net.URI.create(urlGuardada);
+            if (uri.getHost() == null || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())))
+                return null;
+            String ruta = uri.getPath();
+            if (ruta == null) return null;
+            String nombre = ruta.substring(ruta.lastIndexOf('/') + 1);
+            return corresponde(urlGuardada, tienda, producto, nombre) ? nombre : null;
+        } catch (IllegalArgumentException | NegocioException e) {
+            return null;
         }
     }
 
