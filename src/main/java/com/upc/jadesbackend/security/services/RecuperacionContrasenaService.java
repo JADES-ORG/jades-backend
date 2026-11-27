@@ -17,14 +17,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class RecuperacionContrasenaService {
@@ -36,25 +33,20 @@ public class RecuperacionContrasenaService {
     private final PasswordEncoder encoder;
     private final TransactionTemplate transacciones;
     private final boolean habilitada;
-    private final Set<String> correosDemo;
     private final SecureRandom aleatorio = new SecureRandom();
     private final Map<String, Solicitud> solicitudes = new HashMap<>();
 
     public RecuperacionContrasenaService(UsuarioRepositorio usuarios, PasswordEncoder encoder,
             PlatformTransactionManager transactionManager,
-            @Value("${app.recuperacion.demo.habilitada:false}") boolean habilitada,
-            @Value("${app.recuperacion.demo.correos:}") String correosDemo) {
+            @Value("${app.recuperacion.demo.habilitada:false}") boolean habilitada) {
         this.usuarios = usuarios;
         this.encoder = encoder;
         this.transacciones = new TransactionTemplate(transactionManager);
         this.habilitada = habilitada;
-        this.correosDemo = Arrays.stream(correosDemo.split(","))
-                .map(this::normalizar).filter(correo -> !correo.isBlank())
-                .collect(Collectors.toUnmodifiableSet());
     }
 
     public synchronized ResponseCodigo solicitar(String correoIngresado) {
-        String correo = exigirCorreoDemo(correoIngresado);
+        String correo = exigirModoDemo(correoIngresado);
         Instant ahora = Instant.now();
         Solicitud anterior = solicitudes.get(correo);
         if (anterior != null && ahora.isBefore(anterior.generada.plusSeconds(ESPERA_REENVIO_SEGUNDOS))) {
@@ -69,7 +61,7 @@ public class RecuperacionContrasenaService {
     }
 
     public synchronized ResponseVerificacion verificar(String correoIngresado, String codigo) {
-        String correo = exigirCorreoDemo(correoIngresado);
+        String correo = exigirModoDemo(correoIngresado);
         Solicitud solicitud = solicitudes.get(correo);
         Instant ahora = Instant.now();
         if (solicitud == null || !ahora.isBefore(solicitud.generada.plusSeconds(VIGENCIA_SEGUNDOS))
@@ -88,7 +80,7 @@ public class RecuperacionContrasenaService {
     }
 
     public synchronized void restablecer(String correoIngresado, String token, String nuevaContrasena) {
-        String correo = exigirCorreoDemo(correoIngresado);
+        String correo = exigirModoDemo(correoIngresado);
         Solicitud solicitud = solicitudes.get(correo);
         if (solicitud == null || solicitud.token == null || !Instant.now().isBefore(solicitud.tokenVence)
                 || !coincide(solicitud.token, token)) {
@@ -113,13 +105,11 @@ public class RecuperacionContrasenaService {
         solicitudes.remove(correo);
     }
 
-    private String exigirCorreoDemo(String correoIngresado) {
+    private String exigirModoDemo(String correoIngresado) {
         if (!habilitada) {
             throw new NegocioException(HttpStatus.NOT_FOUND, "La recuperación simulada no está habilitada");
         }
-        String correo = normalizar(correoIngresado);
-        if (!correosDemo.contains(correo)) throw cuentaNoDisponible();
-        return correo;
+        return normalizar(correoIngresado);
     }
 
     private boolean habilitado(Usuario usuario) {
