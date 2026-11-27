@@ -1,6 +1,9 @@
 package com.upc.jadesbackend.controllers;
 
 import com.upc.jadesbackend.dtos.RequestRegistrarTiendaDTO;
+import com.upc.jadesbackend.dtos.RequestActualizarTiendaDTO;
+import com.upc.jadesbackend.dtos.RequestConfiguracionTiendaDTO;
+import com.upc.jadesbackend.dtos.ResponseTiendaDetalleDTO;
 import com.upc.jadesbackend.dtos.ResponseBajaTiendaDTO;
 import com.upc.jadesbackend.dtos.ResponseTiendaDTO;
 import com.upc.jadesbackend.dtos.ResponseTiendaResumenDTO;
@@ -35,10 +38,40 @@ public class TiendaController {
         return servicio.listarMisTiendas(principal);
     }
 
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN_SISTEMA')")
+    public List<ResponseTiendaDetalleDTO> listar(@AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.listar(principal);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN_SISTEMA')")
-    public ResponseTiendaResumenDTO consultar(@PathVariable Long id) {
-        return servicio.consultar(id);
+    public ResponseTiendaDetalleDTO consultar(@PathVariable Long id,
+                                             @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.consultarDetalle(id, principal);
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN_SISTEMA')")
+    public ResponseTiendaDetalleDTO actualizar(@PathVariable Long id,
+                                                @Valid @RequestBody RequestActualizarTiendaDTO solicitud,
+                                                @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.actualizar(id, solicitud, principal);
+    }
+
+    @GetMapping("/{id}/configuracion")
+    @PreAuthorize("hasRole('ADMIN_NEGOCIO')")
+    public ResponseTiendaDetalleDTO consultarConfiguracion(@PathVariable Long id,
+                                                            @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.consultarConfiguracion(id, principal);
+    }
+
+    @PutMapping("/{id}/configuracion")
+    @PreAuthorize("hasRole('ADMIN_NEGOCIO')")
+    public ResponseTiendaDetalleDTO actualizarConfiguracion(@PathVariable Long id,
+                                                              @Valid @RequestBody RequestConfiguracionTiendaDTO solicitud,
+                                                              @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.actualizarConfiguracion(id, solicitud, principal);
     }
 
     @PatchMapping("/{id}/desactivar")

@@ -29,7 +29,7 @@ public class Tienda {
 
     @Size(max = 11)
     @NotNull
-    @Column(name = "documento_tienda", nullable = false, length = 11)
+    @Column(name = "documento_tienda", nullable = false, length = 11, unique = true)
     private String documentoTienda;
 
     @Size(max = 50)
