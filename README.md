@@ -109,6 +109,18 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 
 Los POST reciben `monto`, `fechaPagoEfectivo` (AAAA-MM-DD), `horaPagoEfectivo` (HH:mm:ss) y `medioPago`. Los GET aceptan los parámetros opcionales `fechaPagoEfectivo` y `horaPagoEfectivo`. Si la fecha es hoy y se omite la hora, se utiliza la hora actual del servidor en Lima; para fechas anteriores se debe indicar la hora efectiva. No se aceptan momentos futuros ni anteriores a la compra. Si el corte y el vencimiento histórico coinciden por ajuste al último día del mes, el pago de esa obligación se permite estrictamente después de la hora de corte. Los demás pagos anticipados mantienen sus reglas. El administrador registra pagos y el cliente solo consulta sus propios datos. El cronograma original permanece intacto; los importes efectivamente cobrados se consultan en los pagos.
 
+### Administración y configuración de tiendas
+
+| Método | Endpoint | Rol |
+|---|---|---|
+| GET | `/api/v1/tiendas` | ADMIN_SISTEMA |
+| GET | `/api/v1/tiendas/{id}` | ADMIN_SISTEMA |
+| PUT | `/api/v1/tiendas/{id}` | ADMIN_SISTEMA |
+| GET | `/api/v1/tiendas/{id}/configuracion` | ADMIN_NEGOCIO vinculado |
+| PUT | `/api/v1/tiendas/{id}/configuracion` | ADMIN_NEGOCIO vinculado |
+
+La lista y el detalle del administrador del sistema incluyen los datos generales y los administradores vinculados, sin contraseñas ni hashes. Las respuestas conservan los campos de resumen existentes. El PUT administrativo recibe `nombreTienda`, `razonSocial`, `documentoTienda`, `giroDeNegocio`, `direccion`, `telefonoTienda` y `correoTienda`. El documento debe tener 11 dígitos y no estar registrado en otra tienda. La entidad declara una restricción UNIQUE para proteger también las altas y ediciones concurrentes; antes del arranque con ddl-auto=update, comprueba que no existan documentos duplicados en una base antigua. El PUT de configuración solo admite actualizar `nombreTienda`, `giroDeNegocio`, `telefonoTienda` y `correoTienda`; no modifica los datos legales, los usuarios, sus credenciales ni el estado de la tienda. Teléfono y correo son opcionales (null para eliminarlos). Las consultas están habilitadas para tiendas inactivas, pero ambos PUT requieren una tienda activa. La reactivación y desactivación siguen usando sus PATCH existentes. Las modificaciones se registran en la auditoría con los datos anteriores y posteriores.
+
 ### Imágenes de productos y servicios
 
 Las imágenes PNG/JPEG se validan por contenido real (máximo 5 MB y 20 megapíxeles) y se guardan como PNG (máximo 20 MB procesados). PostgreSQL almacena solo su URL.

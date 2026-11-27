@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface TiendaRepositorio extends JpaRepository<Tienda, Long> {
     boolean existsByDocumentoTienda(String documentoTienda);
+    boolean existsByDocumentoTiendaAndIdNot(String documentoTienda, Long id);
 
     // La baja de la tienda y la venta compiten por el mismo bloqueo de fila.
     @Lock(LockModeType.PESSIMISTIC_WRITE)

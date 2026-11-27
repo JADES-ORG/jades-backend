@@ -9,6 +9,16 @@ import java.util.List;
 
 public interface UsuarioTiendaRepositorio extends JpaRepository<UsuarioTienda, Long> {
     @Query("""
+        select ut from UsuarioTienda ut
+        join fetch ut.idUsuario u
+        join fetch ut.idTienda t
+        where t.id in :tiendaIds and ut.estadoAcceso = 'ACTIVO'
+          and u.rol = 'ADMIN_NEGOCIO'
+        order by t.id, u.id
+        """)
+    List<UsuarioTienda> listarAdministradores(@Param("tiendaIds") List<Long> tiendaIds);
+
+    @Query("""
         select count(ut) > 0 from UsuarioTienda ut
         where ut.idUsuario.id = :usuarioId and ut.idTienda.id = :tiendaId
           and ut.estadoAcceso = 'ACTIVO'
