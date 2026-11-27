@@ -109,6 +109,29 @@ Cuando veas `Started JadesBackendApplication`, la API está lista en el puerto *
 
 Los POST reciben `monto`, `fechaPagoEfectivo` (AAAA-MM-DD), `horaPagoEfectivo` (HH:mm:ss) y `medioPago`. Los GET aceptan los parámetros opcionales `fechaPagoEfectivo` y `horaPagoEfectivo`. Si la fecha es hoy y se omite la hora, se utiliza la hora actual del servidor en Lima; para fechas anteriores se debe indicar la hora efectiva. No se aceptan momentos futuros ni anteriores a la compra. Si el corte y el vencimiento histórico coinciden por ajuste al último día del mes, el pago de esa obligación se permite estrictamente después de la hora de corte. Los demás pagos anticipados mantienen sus reglas. El administrador registra pagos y el cliente solo consulta sus propios datos. El cronograma original permanece intacto; los importes efectivamente cobrados se consultan en los pagos.
 
+### Imágenes de productos y servicios
+
+Las imágenes PNG/JPEG se validan por contenido real (máximo 5 MB y 20 megapíxeles) y se guardan como PNG (máximo 20 MB procesados). PostgreSQL almacena solo su URL.
+
+| Método | Endpoint | Cuerpo |
+|---|---|---|
+| POST | `/api/v1/tiendas/{tienda}/productos` | multipart: `producto` (JSON) y `archivo` (imagen obligatoria) |
+| PUT | `/api/v1/tiendas/{tienda}/productos/{id}` | JSON para editar datos sin cambiar imagen; multipart con `producto` y `archivo` opcional para reemplazarla |
+| POST | `/api/v1/tiendas/{tienda}/productos/{id}/imagen` | multipart: `archivo` para reemplazar solo la imagen |
+| GET | `/api/v1/tiendas/{tienda}/productos/{id}/imagenes/{nombre}` | Devuelve el PNG con autenticación JWT |
+
+En multipart, la parte `producto` debe tener Content-Type `application/json` y `archivo` contiene el fichero. No se debe enviar una URL nueva en `imagenProducto`; el backend la genera. Para mostrar la imagen, el frontend debe solicitar su URL con `Authorization: Bearer <token>` y usar el Blob recibido; al retirar la imagen de la vista debe revocar su object URL. Las tiendas inactivas pueden consultar imágenes, pero no subirlas ni modificarlas.
+
+En Docker sobre AWS, configura `PRODUCTOS_IMAGENES_DIR` con una ruta dentro del contenedor respaldada por un volumen persistente, y `PRODUCTOS_IMAGENES_BASE_URL` con el origen HTTPS público estable del backend (no localhost). Por ejemplo, añade estas opciones al comando de ejecución del contenedor, usando el dominio real:
+
+```bash
+-v jades-productos:/app/uploads/productos \
+-e PRODUCTOS_IMAGENES_DIR=/app/uploads/productos \
+-e PRODUCTOS_IMAGENES_BASE_URL=https://api.example.com
+```
+
+El proceso del contenedor necesita permisos de escritura sobre el volumen. Conserva y respalda tanto el volumen de imágenes como PostgreSQL; no elimines el volumen al recrear el contenedor. Un volumen local sobre la VM no sustituye las copias de seguridad ni comparte archivos entre varias instancias. Las imágenes antiguas de prueba sin archivo deben cargarse nuevamente. Si cambia el dominio público, las URL absolutas ya guardadas deben actualizarse o mantenerse accesibles mediante el dominio anterior.
+
 ### 5. Ejecutar pruebas
 Las pruebas funcionales y financieras se realizarán manualmente mediante Swagger o Postman al finalizar las correcciones.
 

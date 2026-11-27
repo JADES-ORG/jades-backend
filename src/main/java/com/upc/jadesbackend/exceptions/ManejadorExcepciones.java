@@ -41,5 +41,17 @@ public class ManejadorExcepciones {
     public ResponseEntity<ResponseErrorDTO> manejarJsonInvalido(Exception e) {
         return construir(HttpStatus.BAD_REQUEST, "El cuerpo JSON está incompleto o contiene tipos inválidos", Map.of());
     }
+    
+    @ExceptionHandler(
+        org.springframework.web.multipart.MaxUploadSizeExceededException.class
+    )
+    public ResponseEntity<ResponseErrorDTO> manejarArchivoGrande(
+            org.springframework.web.multipart.MaxUploadSizeExceededException e) {
 
+        return construir(
+                HttpStatus.CONTENT_TOO_LARGE,
+                "La imagen no debe superar los 5 MB",
+                Map.of()
+        );
+    }
 }
