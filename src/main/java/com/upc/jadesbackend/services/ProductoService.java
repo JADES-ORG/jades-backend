@@ -61,6 +61,13 @@ public class ProductoService {
         e.setEstadoProducto("INACTIVO");
         return ResponseProductoDTO.de(repositorio.save(e));
     }
+
+    public ResponseProductoDTO reactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
+        acceso.exigir(tienda, usuario);
+        Producto e = bloquear(tienda, id);
+        e.setEstadoProducto("ACTIVO");
+        return ResponseProductoDTO.de(repositorio.save(e));
+    }
     @Transactional(readOnly=true)
     public List<ResponseProductoDTO> listar(Long tienda, boolean soloActivos, UsuarioPrincipal usuario) {
         acceso.exigirParaConsulta(tienda, usuario);

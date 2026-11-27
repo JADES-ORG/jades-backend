@@ -45,6 +45,9 @@ public class ProductoController {
     @PatchMapping("/{id}/desactivar")
     public ResponseProductoDTO desactivar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.desactivar(tienda, id, usuario); }
 
+    @PatchMapping("/{id}/reactivar")
+    public ResponseProductoDTO reactivar(@PathVariable Long tienda, @PathVariable Long id, @AuthenticationPrincipal UsuarioPrincipal usuario) { return servicio.reactivar(tienda, id, usuario); }
+
 
     @PostMapping(
         value = "/{id}/imagen",
