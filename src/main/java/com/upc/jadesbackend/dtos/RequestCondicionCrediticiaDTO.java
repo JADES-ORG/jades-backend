@@ -16,13 +16,13 @@ public record RequestCondicionCrediticiaDTO(
 
         // HU-07: tasa compensatoria (David K.)
         @NotBlank @Pattern(regexp = "NOMINAL|EFECTIVA", message = "El tipo de tasa debe ser NOMINAL o EFECTIVA") String tipoTasa,
-        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa de interés debe ser mayor a cero") @Digits(integer = 8, fraction = 12) BigDecimal tasaInteres,
+        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa de interés debe ser mayor a cero") @Digits(integer = 8, fraction = 9) BigDecimal tasaInteres,
         @NotBlank @Pattern(regexp = "DIARIA|QUINCENAL|MENSUAL|BIMESTRAL|TRIMESTRAL|CUATRIMESTRAL|SEMESTRAL|ANUAL", message = "Periodo de tasa inválido") String periodoTasa,
         @Pattern(regexp = "DIARIA|QUINCENAL|MENSUAL|BIMESTRAL|TRIMESTRAL|CUATRIMESTRAL|SEMESTRAL|ANUAL", message = "Periodo de capitalización inválido") String capitalizacionTasa,
 
         // HU-08: tasa moratoria (David K.)
         @NotBlank @Pattern(regexp = "NOMINAL|EFECTIVA", message = "El tipo de tasa moratoria debe ser NOMINAL o EFECTIVA") String tipoTasaMora,
-        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa moratoria debe ser mayor a cero") @Digits(integer = 8, fraction = 12) BigDecimal tasaMoratoria,
+        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa moratoria debe ser mayor a cero") @Digits(integer = 8, fraction = 9) BigDecimal tasaMoratoria,
         @NotBlank @Pattern(regexp = "DIARIA|QUINCENAL|MENSUAL|BIMESTRAL|TRIMESTRAL|CUATRIMESTRAL|SEMESTRAL|ANUAL", message = "Periodo de tasa moratoria inválido") String periodoTasaMora,
         @Pattern(regexp = "DIARIA|QUINCENAL|MENSUAL|BIMESTRAL|TRIMESTRAL|CUATRIMESTRAL|SEMESTRAL|ANUAL", message = "Periodo de capitalización moratoria inválido") String capitalizacionMora
 ) {}

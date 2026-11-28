@@ -241,8 +241,17 @@ public class CronogramaService {
         long diasGracia = ChronoUnit.DAYS.between(fechaVenta, primerDiaPago) + 30L * graciaAdicional;
 
         BigDecimal capitalCapitalizado = CalculoFinancieroUtil.capitalizarGracia(monto, tem, diasGracia);
-        ResultadoCronograma cronograma = CalculoFinancieroUtil.generarCronograma(capitalCapitalizado, tem, numeroCuotas, null);
-        BigDecimal ted = CalculoFinancieroUtil.convertirTasaEfectiva(tem, CalculoFinancieroUtil.BASE_MENSUAL, 1);
+        ResultadoCronograma cronograma;
+        BigDecimal ted;
+        try {
+            cronograma = CalculoFinancieroUtil.generarCronograma(capitalCapitalizado, tem, numeroCuotas, null);
+            ted = CalculoFinancieroUtil.convertirTasaEfectiva(tem, CalculoFinancieroUtil.BASE_MENSUAL, 1);
+            if (ted.signum() <= 0) {
+                throw new IllegalArgumentException("La tasa efectiva diaria es demasiado pequeña");
+            }
+        } catch (IllegalArgumentException e) {
+            throw new NegocioException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
 
         return new Plan(monto, fechaVenta, fechaCorte, finGracia, diasGracia, diaPago, tem, ted,
                 capitalCapitalizado, cronograma);
@@ -282,7 +291,9 @@ public class CronogramaService {
         LocalDate finGracia = pactadas == null ? null : pactadas.getFinGracia();
         Long diasGracia = pactadas == null ? null : pactadas.getDiasGracia();
         BigDecimal ted = credito.getTasaEfectivaDiariaAplicada();
-        BigDecimal tem = ted == null ? null : CalculoFinancieroUtil.convertirTasaEfectiva(ted, 1, CalculoFinancieroUtil.BASE_MENSUAL);
+        BigDecimal tem = pactadas != null && pactadas.getTipo() != null && pactadas.getValor() != null && pactadas.getPeriodo() != null
+                ? CalculoFinancieroUtil.tasaEfectivaMensual(pactadas.getTipo(), pactadas.getValor(), pactadas.getPeriodo(), pactadas.getCapitalizacion())
+                : ted == null ? null : CalculoFinancieroUtil.convertirTasaEfectiva(ted, 1, CalculoFinancieroUtil.BASE_MENSUAL);
         BigDecimal ajuste = lista.isEmpty() || credito.getCuotaMensual() == null
                 ? BigDecimal.ZERO
                 : lista.get(lista.size() - 1).getImporte().subtract(credito.getCuotaMensual());

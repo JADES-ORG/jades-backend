@@ -41,7 +41,7 @@ Documentación adicional:
 
 ## Convenciones de datos
 
-Las tasas se reciben como **fracciones decimales**: 18 % = `0.18`, 125 % = `1.25`. Las tasas pactadas deben ser mayores a cero y no tienen un máximo de negocio; se conserva la precisión técnica de la base de datos. El frontend debe dividir entre 100 si muestra porcentajes. Los valores históricos no se reinterpretan automáticamente.
+Las tasas se reciben como **fracciones decimales**: 18 % = `0.18`, 125 % = `1.25`. Las tasas pactadas deben ser mayores a cero. Se utilizan 7 decimales en el porcentaje (9 en su fracción decimal), por ejemplo, 4.4030651 % = `0.044030651`. Las conversiones a tasas efectivas se redondean con esa precisión; se rechazan las tasas que se convierten en cero. Los importes monetarios se redondean a 2 decimales. El frontend debe dividir entre 100 si muestra porcentajes. Se mantienen los días calendario efectivamente transcurridos para gracia, pago único y mora, y la base comercial de 360 días al año y 30 días al mes para equivalencia de tasas y cuotas mensuales. Los cronogramas que no permiten cuotas positivas y saldos consistentes se rechazan. Los valores históricos no se reinterpretan automáticamente.
 
 La moneda `PEN` o `USD` se configura una sola vez para cada cliente. En la edición de condiciones debe mostrarse como solo lectura; el backend rechaza el cambio.
 

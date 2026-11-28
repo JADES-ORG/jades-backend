@@ -13,6 +13,7 @@ import com.upc.jadesbackend.repositories.CondicionCrediticiaRepositorio;
 import com.upc.jadesbackend.repositories.TasaInteresRepositorio;
 import com.upc.jadesbackend.repositories.TasaMoratoriaRepositorio;
 import com.upc.jadesbackend.security.principal.UsuarioPrincipal;
+import com.upc.jadesbackend.util.CalculoFinancieroUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -125,6 +126,13 @@ public class CondicionCreditoService {
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El día de pago debe ser distinto al día de corte");
         validarTasa("compensatoria", dto.tipoTasa(), dto.periodoTasa(), dto.capitalizacionTasa());
         validarTasa("moratoria", dto.tipoTasaMora(), dto.periodoTasaMora(), dto.capitalizacionMora());
+        try {
+            CalculoFinancieroUtil.tasaEfectivaMensual(dto.tipoTasa(), dto.tasaInteres(), dto.periodoTasa(), dto.capitalizacionTasa());
+            CalculoFinancieroUtil.tasaEfectivaDiaria(dto.tipoTasa(), dto.tasaInteres(), dto.periodoTasa(), dto.capitalizacionTasa());
+            CalculoFinancieroUtil.tasaEfectivaDiaria(dto.tipoTasaMora(), dto.tasaMoratoria(), dto.periodoTasaMora(), dto.capitalizacionMora());
+        } catch (IllegalArgumentException e) {
+            throw new NegocioException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     private void validarTasa(String nombre, String tipo, String periodo, String capitalizacion) {

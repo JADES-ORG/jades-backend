@@ -248,8 +248,12 @@ public class VentaService {
             detalle.setPrecioUnitario(producto.getPrecioCredito());   // precio a crédito vigente al momento de la venta
             detalle.setSubtotal(producto.getPrecioCredito().multiply(linea.cantidad()).setScale(2, RoundingMode.HALF_UP));
             venta.agregarDetalle(detalle);
+            if (detalle.getSubtotal().signum() <= 0)
+                throw new NegocioException(HttpStatus.BAD_REQUEST, "El subtotal de cada producto debe ser al menos 0.01");
             total = total.add(detalle.getSubtotal());
         }
+        if (total.signum() <= 0)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "El capital de la venta debe ser mayor a cero");
         venta.setTotalVenta(total);
         return total;
     }

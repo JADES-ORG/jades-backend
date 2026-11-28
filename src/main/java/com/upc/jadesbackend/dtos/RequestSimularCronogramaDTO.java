@@ -8,9 +8,9 @@ import java.time.LocalTime;
 
 /** Datos para simular un cronograma sin guardar nada (paso 3 del wizard de venta). */
 public record RequestSimularCronogramaDTO(
-        @NotNull @DecimalMin(value = "0.01", message = "debe ser mayor a cero") BigDecimal monto,
+        @NotNull @DecimalMin(value = "0.01", message = "debe ser mayor a cero") @Digits(integer = 16, fraction = 2) BigDecimal monto,
         @NotBlank @Pattern(regexp = "(?i)NOMINAL|EFECTIVA", message = "debe ser NOMINAL o EFECTIVA") String tipoTasa,
-        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa debe ser mayor a cero") BigDecimal valorTasa,
+        @NotNull @DecimalMin(value = "0", inclusive = false, message = "La tasa debe ser mayor a cero") @Digits(integer = 8, fraction = 9) BigDecimal valorTasa,
         @NotBlank String periodoTasa,
         String capitalizacionTasa,
         @NotNull @Min(1) @Max(360) Integer numeroCuotas,

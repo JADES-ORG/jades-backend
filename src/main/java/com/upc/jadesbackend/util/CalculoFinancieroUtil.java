@@ -18,7 +18,7 @@ import java.util.Locale;
  * <ul>
  *   <li>Año comercial de 360 días y mes comercial de 30 días.</li>
  *   <li>Montos monetarios redondeados a 2 decimales (HALF_UP).</li>
- *   <li>Tasas manejadas con 12 decimales (cumple el mínimo de 7 y coincide con la escala de BD).</li>
+ *   <li>Tasas expresadas con 7 decimales porcentuales (9 en fracción decimal).</li>
  *   <li>Las tasas se reciben como fracción decimal: 18% = 0.18.</li>
  * </ul>
  *
@@ -33,7 +33,7 @@ public final class CalculoFinancieroUtil {
     public static final int BASE_ANUAL = 360;
     public static final int BASE_MENSUAL = 30;
     public static final int DECIMALES_MONEDA = 2;
-    public static final int DECIMALES_TASA = 12;
+    public static final int DECIMALES_TASA = 9;
 
     private static final MathContext MC = MathContext.DECIMAL128;
     private static final RoundingMode REDONDEO = RoundingMode.HALF_UP;
@@ -125,17 +125,25 @@ public final class CalculoFinancieroUtil {
         int diasPeriodo = diasDelPeriodo(periodoTasa);
         String tipo = normalizar(tipoTasa);
 
+        BigDecimal efectiva;
         if (tipo.startsWith("EFECTIV")) {
-            return convertirTasaEfectiva(tasa, diasPeriodo, diasObjetivo);
-        }
-        if (tipo.startsWith("NOMINAL")) {
+            efectiva = convertirTasaEfectiva(tasa, diasPeriodo, diasObjetivo);
+        } else if (tipo.startsWith("NOMINAL")) {
             int diasCap = diasDelPeriodo(capitalizacion);
+            if (diasCap > diasPeriodo) {
+                throw new IllegalArgumentException("La capitalización no puede ser mayor que el periodo de la tasa");
+            }
             BigDecimal tasaCap = tasa
                     .multiply(BigDecimal.valueOf(diasCap), MC)
                     .divide(BigDecimal.valueOf(diasPeriodo), MC);
-            return convertirTasaEfectiva(tasaCap, diasCap, diasObjetivo);
+            efectiva = convertirTasaEfectiva(tasaCap, diasCap, diasObjetivo);
+        } else {
+            throw new IllegalArgumentException("Tipo de tasa no soportado: " + tipoTasa);
         }
-        throw new IllegalArgumentException("Tipo de tasa no soportado: " + tipoTasa);
+        if (diasObjetivo > 0 && efectiva.signum() <= 0) {
+            throw new IllegalArgumentException("La tasa es demasiado pequeña para la precisión financiera admitida");
+        }
+        return efectiva;
     }
 
     public static BigDecimal tasaEfectivaMensual(String tipoTasa, BigDecimal valorTasa,
@@ -194,6 +202,9 @@ public final class CalculoFinancieroUtil {
     public static ResultadoCronograma generarCronograma(BigDecimal capitalFinanciado, BigDecimal tasaPeriodo,
                                                         int numeroCuotas, LocalDate primerVencimiento) {
         BigDecimal capital = redondearMoneda(capitalFinanciado);
+        if (capital.signum() <= 0) {
+            throw new IllegalArgumentException("El capital financiado debe ser mayor a cero");
+        }
         BigDecimal cuotaBase = calcularCuotaFrancesa(capital, tasaPeriodo, numeroCuotas);
 
         List<FilaCronograma> filas = new ArrayList<>(numeroCuotas);
@@ -218,6 +229,10 @@ public final class CalculoFinancieroUtil {
             }
 
             saldo = saldoInicial.subtract(amortizacion);
+            if (cuota.signum() <= 0 || amortizacion.signum() <= 0 || interes.signum() < 0
+                    || saldo.signum() < 0 || (k < numeroCuotas && saldo.signum() == 0)) {
+                throw new IllegalArgumentException("El importe y el plazo no permiten generar cuotas válidas con dos decimales");
+            }
             interesesTotales = interesesTotales.add(interes);
             totalCuotas = totalCuotas.add(cuota);
 
