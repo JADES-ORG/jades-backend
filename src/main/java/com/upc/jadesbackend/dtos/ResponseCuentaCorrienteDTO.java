@@ -14,7 +14,8 @@ public record ResponseCuentaCorrienteDTO(
         List<Compra> compras,
         List<Obligacion> obligaciones,
         List<PagoRegistrado> pagos,
-        Resumen resumen
+        Resumen resumen,
+        ResponseCondicionCrediticiaDTO condicionCrediticia
 )
     // Records anidados - TEMPORAL
     // NOTITA: Podria evaluarse la idea de separar cada DTO independientemente si en caso se requieran usar en otros modulos o mejorar la organizaxion.

@@ -1,6 +1,7 @@
 package com.upc.jadesbackend.services;
 
 import com.upc.jadesbackend.dtos.ResponseCuentaCorrienteDTO;
+import com.upc.jadesbackend.dtos.ResponseCondicionCrediticiaDTO;
 import com.upc.jadesbackend.dtos.ResponseVentaDTO;
 import com.upc.jadesbackend.dtos.ResponseTiendaClienteDTO;
 import com.upc.jadesbackend.entities.*;
@@ -30,6 +31,7 @@ public class ClientePortalService {
     private final MoraService moraService;
     private final ClienteService fichas;
     private final CondicionCrediticiaRepositorio condiciones;
+    private final CondicionCreditoService condicionesCredito;
 
     public ClientePortalService(
             ClienteRepositorio clientes,
@@ -37,7 +39,7 @@ public class ClientePortalService {
             CreditoRepositorio creditos,
             CuotaRepositorio cuotas,
             PagoRepositorio pagos, MoraService moraService, ClienteService fichas,
-            CondicionCrediticiaRepositorio condiciones) {
+            CondicionCrediticiaRepositorio condiciones, CondicionCreditoService condicionesCredito) {
 
         this.clientes = clientes;
         this.ventas = ventas;
@@ -47,11 +49,15 @@ public class ClientePortalService {
         this.moraService = moraService;
         this.fichas = fichas;
         this.condiciones = condiciones;
+        this.condicionesCredito = condicionesCredito;
     }
 
     @Transactional(readOnly = true)
     public ResponseCuentaCorrienteDTO consultarMiCuenta(Long idUsuario, Long idTienda) {
-        return construirCuenta(fichas.consultarFichaPropia(idUsuario, idTienda));
+        Cliente ficha = fichas.consultarFichaPropia(idUsuario, idTienda);
+        var condicion = condiciones.findByIdCliente_Id(ficha.getId())
+                .map(condicionesCredito::mapearRespuesta).orElse(null);
+        return construirCuenta(ficha, condicion);
     }
 
     @Transactional(readOnly = true)
@@ -70,6 +76,10 @@ public class ClientePortalService {
 
     // NOTITA: Podria evaluarse reestructurar este metodo para mejor legibilidad y que sea menos complejo
     public ResponseCuentaCorrienteDTO construirCuenta(Cliente cliente) {
+        return construirCuenta(cliente, null);
+    }
+
+    private ResponseCuentaCorrienteDTO construirCuenta(Cliente cliente, ResponseCondicionCrediticiaDTO condicion) {
         Long idCliente = cliente.getId();
         List<Venta> listaVentas = ventas.findAllByIdCliente_IdOrderByFechaVentaDesc(idCliente);
         List<Credito> listaCreditos = creditos.findAllByIdVenta_IdCliente_Id(idCliente);
@@ -139,7 +149,7 @@ public class ClientePortalService {
                 cliente.getDniCliente(), cliente.getIdTienda().getId(),
                 cliente.getIdTienda().getNombreTienda(), comprasDTO, obligacionesDTO, pagosDTO,
                 new ResponseCuentaCorrienteDTO.Resumen(totalCompras, capitalPendiente,
-                        interesPendiente, moraPagada, totalPendiente, pendientes, vencidas));
+                        interesPendiente, moraPagada, totalPendiente, pendientes, vencidas), condicion);
     }
 
     private static BigDecimal nvl(BigDecimal valor) {
