@@ -8,10 +8,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface UsuarioRepositorio extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByCorreoUsuarioIgnoreCase(String correoUsuario);
     boolean existsByCorreoUsuarioIgnoreCase(String correoUsuario);
+    List<Usuario> findAllByRolAndActivoTrueOrderByNombreUsuarioAsc(String rol);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from Usuario u where u.id = :id")

@@ -167,3 +167,7 @@ Las pruebas funcionales y financieras se realizarán manualmente mediante Swagge
 ### Precios del catálogo en ambas monedas
 
 Para registrar o actualizar un producto o servicio se requieren cuatro precios positivos: `precioContado` y `precioCredito` (PEN), `precioContadoUsd` y `precioCreditoUsd` (USD). La simulación y el registro de venta seleccionan el precio a crédito en la moneda pactada con el cliente; no se aplica tipo de cambio. Los productos antiguos conservan sus campos de precio originales como PEN y deben completar manualmente sus precios USD. No se inventan importes USD ni se cambian los precios históricos de las ventas.
+
+### Administradores de negocio en varias tiendas
+
+`GET /api/v1/tiendas/administradores` (ADMIN_SISTEMA) lista administradores de negocio activos sin credenciales. En `POST /api/v1/tiendas`, enviar exactamente uno de `administrador` (datos de cuenta nueva) o `idAdministradorExistente` (ID de cuenta activa). Al asignar una cuenta existente no se modifica su contraseña ni sus datos. El selector existente `GET /api/v1/tiendas/mis-tiendas` devuelve las tiendas vinculadas.

@@ -44,6 +44,13 @@ public class TiendaController {
         return servicio.listar(principal);
     }
 
+    @GetMapping("/administradores")
+    @PreAuthorize("hasRole('ADMIN_SISTEMA')")
+    public List<ResponseTiendaDetalleDTO.Administrador> listarAdministradores(
+            @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.listarAdministradoresDisponibles(principal);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN_SISTEMA')")
     public ResponseTiendaDetalleDTO consultar(@PathVariable Long id,

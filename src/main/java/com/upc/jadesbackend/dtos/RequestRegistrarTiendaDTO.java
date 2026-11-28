@@ -11,5 +11,6 @@ public record RequestRegistrarTiendaDTO(
         @NotBlank @Size(max = 200) String direccion,
         @Size(max = 15) String telefonoTienda,
         @Email @Size(max = 150) String correoTienda,
-        @NotNull @Valid RequestAdministradorTiendaDTO administrador
+        @Valid RequestAdministradorTiendaDTO administrador,
+        @Positive Long idAdministradorExistente
 ) {}

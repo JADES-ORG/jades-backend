@@ -12,7 +12,7 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @Entity
-@Table(name = "usuario_tienda")
+@Table(name = "usuario_tienda", uniqueConstraints = @UniqueConstraint(name = "uk_usuario_tienda", columnNames = {"id_usuario", "id_tienda"}))
 public class UsuarioTienda {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

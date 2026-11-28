@@ -52,12 +52,30 @@ public class TiendaService {
     @Transactional
     public ResponseTiendaDTO registrar(RequestRegistrarTiendaDTO dto, Long idResponsable) {
         String documento = dto.documentoTienda().trim();
-        String correoAdmin = dto.administrador().correoUsuario().trim().toLowerCase(java.util.Locale.ROOT);
         if (tiendas.existsByDocumentoTienda(documento)) {
             throw new NegocioException(HttpStatus.CONFLICT, "Ya existe una tienda con el documento indicado");
         }
-        if (usuarios.existsByCorreoUsuarioIgnoreCase(correoAdmin)) {
-            throw new NegocioException(HttpStatus.CONFLICT, "El correo del administrador ya está registrado");
+        if ((dto.administrador() == null) == (dto.idAdministradorExistente() == null)) {
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "Selecciona un administrador existente o registra uno nuevo");
+        }
+        Usuario administrador;
+        if (dto.idAdministradorExistente() != null) {
+            administrador = usuarios.findById(dto.idAdministradorExistente())
+                    .filter(u -> "ADMIN_NEGOCIO".equals(u.getRol()) && Boolean.TRUE.equals(u.getActivo()))
+                    .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Administrador de negocio activo no encontrado"));
+        } else {
+            String correoAdmin = dto.administrador().correoUsuario().trim().toLowerCase(java.util.Locale.ROOT);
+            if (usuarios.existsByCorreoUsuarioIgnoreCase(correoAdmin)) {
+                throw new NegocioException(HttpStatus.CONFLICT, "El correo ya está registrado; selecciona el administrador existente");
+            }
+            administrador = new Usuario();
+            administrador.setRol("ADMIN_NEGOCIO");
+            administrador.setNombreUsuario(dto.administrador().nombreUsuario().trim());
+            administrador.setCorreoUsuario(correoAdmin);
+            administrador.setTelefonoUsuario(dto.administrador().telefonoUsuario());
+            administrador.setPasswordHash(encoder.encode(dto.administrador().contrasena()));
+            administrador.setActivo(true);
+            administrador = usuarios.saveAndFlush(administrador);
         }
 
         Tienda tienda = new Tienda();
@@ -70,15 +88,6 @@ public class TiendaService {
         tienda.setCorreoTienda(dto.correoTienda());
         tienda.setEstadoTienda("ACTIVO");
         tienda = tiendas.saveAndFlush(tienda);
-
-        Usuario administrador = new Usuario();
-        administrador.setRol("ADMIN_NEGOCIO"); // Rol existente en el proyecto del equipo
-        administrador.setNombreUsuario(dto.administrador().nombreUsuario().trim());
-        administrador.setCorreoUsuario(correoAdmin);
-        administrador.setTelefonoUsuario(dto.administrador().telefonoUsuario());
-        administrador.setPasswordHash(encoder.encode(dto.administrador().contrasena()));
-        administrador.setActivo(true);
-        administrador = usuarios.saveAndFlush(administrador);
 
         UsuarioTienda vinculo = new UsuarioTienda();
         vinculo.setIdUsuario(administrador);
@@ -94,7 +103,16 @@ public class TiendaService {
                 Map.of("estado_tienda", "ACTIVO", "documento_tienda", documento));
         auditorias.save(auditoria);
         return new ResponseTiendaDTO(tienda.getId(), tienda.getNombreTienda(), documento,
-                tienda.getEstadoTienda(), administrador.getId(), correoAdmin);
+                tienda.getEstadoTienda(), administrador.getId(), administrador.getCorreoUsuario());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResponseTiendaDetalleDTO.Administrador> listarAdministradoresDisponibles(UsuarioPrincipal principal) {
+        exigirAdministradorSistema(principal);
+        return usuarios.findAllByRolAndActivoTrueOrderByNombreUsuarioAsc("ADMIN_NEGOCIO").stream()
+                .map(u -> new ResponseTiendaDetalleDTO.Administrador(u.getId(), u.getNombreUsuario(),
+                        u.getCorreoUsuario(), u.getTelefonoUsuario(), true))
+                .toList();
     }
 
     @Transactional(readOnly = true)
