@@ -92,6 +92,8 @@ public class ProductoService {
                 && !Objects.equals(dto.imagenProducto(), e.getImagenProducto())) {
             throw new NegocioException(HttpStatus.BAD_REQUEST, "La imagen se modifica mediante la carga de un archivo");
         }
+        if ((dto.precioContadoUsd() == null) != (dto.precioCreditoUsd() == null))
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "Registra ambos precios en dólares o deja ambos vacíos");
         e.setNombreProducto(dto.nombreProducto());
         e.setDescripcion(dto.descripcion());
         e.setPrecioContado(dto.precioContado());
