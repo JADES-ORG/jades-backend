@@ -56,7 +56,7 @@ Si no tienes PostgreSQL, puedes levantarlo con Docker:
 docker run --name jades-postgres -e POSTGRES_DB=bd_JADES -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
 ```
 
-La configuración de desarrollo utiliza `spring.jpa.hibernate.ddl-auto=update`. Hibernate actualiza el esquema a partir de las entidades JPA al iniciar; las columnas nuevas quedan nulas para operaciones antiguas cuya información original se desconoce. Para las pruebas finales se recomienda una base limpia, sin borrar la existente. La carga de `src/main/resources/insert.sql` es manual y opcional.
+La configuración de desarrollo utiliza `spring.jpa.hibernate.ddl-auto=update`. Hibernate actualiza el esquema a partir de las entidades JPA al iniciar; las columnas nuevas quedan nulas para operaciones antiguas cuya información original se desconoce. Para las pruebas finales se recomienda una base limpia, sin borrar la existente. Los datos iniciales y la base de datos definitiva serán proporcionados por el equipo; no se ejecuta una carga SQL de demostración.
 
 ### 2. Variables de entorno
 Configura `DB_PASSWORD` y `JWT_SECRET` mediante variables de entorno también en desarrollo. El secreto JWT debe tener al menos 32 bytes y ser exclusivo de cada entorno. Las demás variables tienen los siguientes valores predeterminados:
@@ -175,3 +175,7 @@ Para registrar o actualizar un producto o servicio se requieren cuatro precios p
 ### Cliente registrado en varias tiendas
 
 El alta reutiliza una cuenta CLIENTE activa si el correo y el DNI corresponden a las fichas existentes; no cambia la contraseña de una cuenta vinculada. `contrasenaTemporal` se exige solamente para una cuenta nueva. Cada tienda tiene una ficha independiente y la baja de esa ficha no desactiva la cuenta compartida. El correo de acceso no es editable; tampoco el DNI de una ficha vinculada. `GET /api/v1/portal/mis-tiendas` devuelve las fichas y sus deudas por establecimiento y moneda, incluidas las fichas sin pendientes. Las rutas `GET /api/v1/portal/mi-cuenta`, `/api/v1/corte/mi-cuenta` y `/api/v1/mora/mi-cuenta` aceptan `idTienda`. Si el cliente tiene varias fichas, ese parámetro es obligatorio. Solo puede consultar las fichas de su propia cuenta. No se consolidan deudas de monedas distintas.
+
+### Registro de ventas y cortes
+
+El POST de ventas exige la cabecera `Idempotency-Key` (8 a 64 caracteres). El frontend debe generar una clave nueva por venta y reutilizarla si reintenta la misma operación; no debe usar una nueva clave al reintentar. La simulación no requiere clave. Las ventas bloquean la ficha del cliente, la condición crediticia y los productos seleccionados para evitar cambios simultáneos de estado o precio. Las restricciones únicas de correo, ficha por tienda y DNI, vínculo usuario-tienda y número de cuota protegen también las escrituras concurrentes. Antes de importar una BD existente, verificar duplicados y completar los precios USD del catálogo. Los listados de corte mantienen `ciclo=AAAA-MM` y `fechaEvaluacion` opcionales; por defecto toman el mes y la fecha actuales de Lima.

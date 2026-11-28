@@ -12,6 +12,9 @@ public interface ProductoRepositorio extends JpaRepository<Producto, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Producto p where p.id = :id and p.idTienda.id = :tienda")
     Optional<Producto> bloquearPorIdYTienda(@Param("id") Long id, @Param("tienda") Long tienda);
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select p from Producto p where p.id = :id and p.idTienda.id = :tienda")
+    Optional<Producto> bloquearParaVenta(@Param("id") Long id, @Param("tienda") Long tienda);
     boolean existsByImagenProductoAndIdNot(String imagenProducto, Long id);
     List<Producto> findByIdTienda_IdOrderByIdAsc(Long tienda);
     List<Producto> findByIdTienda_IdAndEstadoProductoOrderByIdAsc(Long tienda, String estado);

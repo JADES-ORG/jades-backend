@@ -53,7 +53,8 @@ public class ClienteService {
     }
     public ResponseClienteDTO actualizar(Long tienda, Long id, RequestClienteDTO dto, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
-        Cliente e = buscar(tienda, id);
+        Cliente e = repositorio.bloquearPorIdYTienda(id, tienda)
+                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado en esta tienda"));
         if (e.getIdUsuario() != null && !e.getDniCliente().equals(dto.dniCliente()))
             throw new NegocioException(HttpStatus.CONFLICT, "No se puede modificar el DNI de una cuenta vinculada");
         aplicar(tienda, e, dto);
@@ -61,13 +62,15 @@ public class ClienteService {
     }
     public ResponseClienteDTO desactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
-        Cliente e = buscar(tienda, id);
+        Cliente e = repositorio.bloquearPorIdYTienda(id, tienda)
+                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado en esta tienda"));
         e.setEstadoCliente("INACTIVO");
         return ResponseClienteDTO.de(repositorio.save(e));
     }
     public ResponseClienteDTO reactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
-        Cliente e = buscar(tienda, id);
+        Cliente e = repositorio.bloquearPorIdYTienda(id, tienda)
+                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado en esta tienda"));
         e.setEstadoCliente("ACTIVO");
         return ResponseClienteDTO.de(repositorio.save(e));
     }

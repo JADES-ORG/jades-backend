@@ -13,7 +13,7 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @Entity
-@Table(name = "cuota")
+@Table(name = "cuota", uniqueConstraints = @UniqueConstraint(name = "uk_cuota_credito_numero", columnNames = {"id_credito", "numero_cuota"}))
 public class Cuota {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

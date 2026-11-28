@@ -24,7 +24,7 @@ public class VentaController {
 
     @PostMapping
     public ResponseEntity<ResponseVentaDTO> registrar(@PathVariable Long tienda, @Valid @RequestBody RequestVentaDTO dto,
-                                                      @RequestHeader(value = "Idempotency-Key", required = false) String claveIdempotencia,
+                                                      @RequestHeader("Idempotency-Key") String claveIdempotencia,
                                                       @AuthenticationPrincipal UsuarioPrincipal usuario) {
         var resultado = servicio.registrar(tienda, dto, usuario, claveIdempotencia);
         return ResponseEntity.created(URI.create("/api/v1/tiendas/" + tienda + "/ventas/" + resultado.id())).body(resultado);

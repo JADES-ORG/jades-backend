@@ -71,7 +71,7 @@ public class VentaService {
         if (!"ACTIVO".equals(t.getEstadoTienda()))
             throw new NegocioException(HttpStatus.CONFLICT, "La tienda no está activa");
 
-        Cliente cliente = clientes.findByIdAndIdTienda_Id(dto.idCliente(), tienda).orElseThrow(() ->
+        Cliente cliente = clientes.bloquearParaVenta(dto.idCliente(), tienda).orElseThrow(() ->
                 new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado en esta tienda"));
         if (!"ACTIVO".equals(cliente.getEstadoCliente()))
             throw new NegocioException(HttpStatus.CONFLICT, "No se pueden registrar ventas a un cliente inactivo");
@@ -114,7 +114,7 @@ public class VentaService {
         venta.setFechaPagoAsignada(resultado.fechaPago());
         venta.setClaveIdempotencia(clave);
 
-        BigDecimal total = calcularDetalles(venta, tienda, dto, condicion.getMonedaCredito());
+        BigDecimal total = calcularDetalles(venta, tienda, dto, condicion.getMonedaCredito(), true);
 
         evaluacion.validarLimite(cliente.getId(), condicion, total);   // HU09 - criterio 1
 
@@ -174,7 +174,7 @@ public class VentaService {
 
         // Entidad transitoria para compartir la lógica de líneas; nunca se guarda.
         Venta borrador = new Venta();
-        BigDecimal capital = calcularDetalles(borrador, tienda, dto, condicion.getMonedaCredito());
+        BigDecimal capital = calcularDetalles(borrador, tienda, dto, condicion.getMonedaCredito(), false);
         if (capital.signum() <= 0)
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El capital de la venta debe ser mayor a cero");
         BigDecimal utilizado = evaluacion.creditoUtilizado(cliente.getId());
@@ -229,15 +229,21 @@ public class VentaService {
     }
 
     /** Calcula los mismos precios y subtotales para venta y simulación. No persiste. */
-    private BigDecimal calcularDetalles(Venta venta, Long tienda, RequestVentaDTO dto, String moneda) {
+    private BigDecimal calcularDetalles(Venta venta, Long tienda, RequestVentaDTO dto, String moneda, boolean bloquear) {
+        Map<Long, Producto> catalogo = new HashMap<>();
+        for (Long id : dto.detalles().stream().map(RequestVentaDTO.Detalle::idProducto).distinct().sorted().toList()) {
+            Producto producto = (bloquear ? productos.bloquearParaVenta(id, tienda)
+                    : productos.findByIdAndIdTienda_Id(id, tienda)).orElseThrow(() ->
+                    new NegocioException(HttpStatus.NOT_FOUND, "Producto " + id + " no encontrado en esta tienda"));
+            catalogo.put(id, producto);
+        }
         BigDecimal total = BigDecimal.ZERO;
         Set<Long> vistos = new HashSet<>();
         for (RequestVentaDTO.Detalle linea : dto.detalles()) {
             if (!vistos.add(linea.idProducto()))
                 throw new NegocioException(HttpStatus.BAD_REQUEST,
                         "El producto " + linea.idProducto() + " está repetido; indica la cantidad total en una sola línea");
-            Producto producto = productos.findByIdAndIdTienda_Id(linea.idProducto(), tienda).orElseThrow(() ->
-                    new NegocioException(HttpStatus.NOT_FOUND, "Producto " + linea.idProducto() + " no encontrado en esta tienda"));
+            Producto producto = catalogo.get(linea.idProducto());
             validarProducto(producto, linea, dto.modalidadPago());
 
             DetalleVenta detalle = new DetalleVenta();
@@ -286,7 +292,8 @@ public class VentaService {
     }
 
     private String normalizarClave(String clave) {
-        if (clave == null || clave.isBlank()) return null;
+        if (clave == null || clave.isBlank())
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "Idempotency-Key es obligatoria");
         String limpia = clave.trim();
         if (!FORMATO_CLAVE.matcher(limpia).matches())
             throw new NegocioException(HttpStatus.BAD_REQUEST,

@@ -35,16 +35,18 @@ public class MoraService {
     private final ClienteRepositorio clientes;
     private final UsuarioTiendaRepositorio accesos;
     private final ClienteService fichas;
+    private final CondicionCrediticiaRepositorio condiciones;
 
     public MoraService(CuotaRepositorio cuotas,
                        PagoRepositorio pagos,
                        ClienteRepositorio clientes,
-                       UsuarioTiendaRepositorio accesos, ClienteService fichas) {
+                       UsuarioTiendaRepositorio accesos, ClienteService fichas, CondicionCrediticiaRepositorio condiciones) {
         this.cuotas = cuotas;
         this.pagos = pagos;
         this.clientes = clientes;
         this.accesos = accesos;
         this.fichas = fichas;
+        this.condiciones = condiciones;
     }
 
     /**
@@ -165,7 +167,8 @@ public class MoraService {
         BigDecimal totalCuotas = BigDecimal.ZERO;
         BigDecimal totalMora = BigDecimal.ZERO;
         BigDecimal totalExigible = BigDecimal.ZERO;
-        String moneda = "PEN";
+        String moneda = condiciones.findByIdCliente_Id(cliente.getId())
+                .map(CondicionCredito::getMonedaCredito).orElse(null);
 
         for (Cuota c : listaCuotas) {
             if (cuotasPagadasIds.contains(c.getId())) {
@@ -174,7 +177,9 @@ public class MoraService {
             if (c.getFechaVencimiento().isBefore(fechaRef)) {
                 Credito cred = c.getIdCredito();
                 Venta v = cred.getIdVenta();
-                moneda = v.getMonedaVenta() != null ? v.getMonedaVenta() : moneda;
+                if (moneda == null) moneda = v.getMonedaVenta();
+                if (!Objects.equals(moneda, v.getMonedaVenta()))
+                    throw new NegocioException(HttpStatus.CONFLICT, "No se pueden acumular obligaciones en monedas distintas");
 
                 ResponseCalculoMoraDTO detalle = construirDetalleMora(c, cred, v, fechaRef);
                 cuotasVencidas.add(detalle);
