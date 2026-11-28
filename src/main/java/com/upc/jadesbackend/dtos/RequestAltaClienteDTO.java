@@ -7,5 +7,5 @@ public record RequestAltaClienteDTO(
         @NotBlank @Pattern(regexp = "[0-9]{8}") String dniCliente,
         @Size(max = 15) @Pattern(regexp = "[+0-9() -]*") String telefonoCliente,
         @NotBlank @Email @Size(max = 150) String correoCliente,
-        @NotBlank @Size(min = 8, max = 72) String contrasenaTemporal
+        @Size(min = 8, max = 72) String contrasenaTemporal
 ) {}

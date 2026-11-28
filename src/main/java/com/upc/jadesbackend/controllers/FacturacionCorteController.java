@@ -62,12 +62,13 @@ public class FacturacionCorteController {
     @GetMapping("/mi-cuenta")
     @PreAuthorize("hasRole('CLIENTE')")
     public ResponseListadoCorteDTO consultarMiCorte(
+            @RequestParam(required = false) Long idTienda,
             @RequestParam(required = false) String ciclo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaEvaluacion,
             @AuthenticationPrincipal UsuarioPrincipal principal) {
 
         YearMonth ym = parsearCiclo(ciclo);
-        return servicio.consultarMiListadoCorte(ym, fechaEvaluacion, principal.getId());
+        return servicio.consultarMiListadoCorte(ym, fechaEvaluacion, principal.getId(), idTienda);
     }
 
     private static YearMonth parsearCiclo(String ciclo) {

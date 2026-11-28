@@ -1,6 +1,8 @@
 package com.upc.jadesbackend.controllers;
 
 import com.upc.jadesbackend.dtos.ResponseCuentaCorrienteDTO;
+import com.upc.jadesbackend.dtos.ResponseTiendaClienteDTO;
+import java.util.List;
 import com.upc.jadesbackend.security.principal.UsuarioPrincipal;
 import com.upc.jadesbackend.services.ClientePortalService;
 
@@ -21,8 +23,14 @@ public class ClientePortalController {
     @GetMapping("/mi-cuenta")
     @PreAuthorize("hasRole('CLIENTE')")
     public ResponseCuentaCorrienteDTO consultarMiCuenta(
+            @RequestParam(required = false) Long idTienda,
             @AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.consultarMiCuenta(principal.getId(), idTienda);
+    }
 
-        return servicio.consultarMiCuenta(principal.getId());
+    @GetMapping("/mis-tiendas")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public List<ResponseTiendaClienteDTO> listarMisTiendas(@AuthenticationPrincipal UsuarioPrincipal principal) {
+        return servicio.listarMisTiendas(principal.getId());
     }
 }

@@ -34,15 +34,17 @@ public class MoraService {
     private final PagoRepositorio pagos;
     private final ClienteRepositorio clientes;
     private final UsuarioTiendaRepositorio accesos;
+    private final ClienteService fichas;
 
     public MoraService(CuotaRepositorio cuotas,
                        PagoRepositorio pagos,
                        ClienteRepositorio clientes,
-                       UsuarioTiendaRepositorio accesos) {
+                       UsuarioTiendaRepositorio accesos, ClienteService fichas) {
         this.cuotas = cuotas;
         this.pagos = pagos;
         this.clientes = clientes;
         this.accesos = accesos;
+        this.fichas = fichas;
     }
 
     /**
@@ -81,10 +83,8 @@ public class MoraService {
      * Consulta para el portal del cliente autenticado.
      */
     @Transactional(readOnly = true)
-    public ResponseMoraClienteDTO consultarMorasMiCuenta(Long idUsuarioCliente, LocalDate fechaEvaluacion) {
-        Cliente cliente = clientes.findByIdUsuario_Id(idUsuarioCliente)
-                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND,
-                        "No existe un cliente vinculado al usuario autenticado"));
+    public ResponseMoraClienteDTO consultarMorasMiCuenta(Long idUsuarioCliente, Long idTienda, LocalDate fechaEvaluacion) {
+        Cliente cliente = fichas.consultarFichaPropia(idUsuarioCliente, idTienda);
 
         LocalDate fechaRef = fechaEvaluacion != null ? fechaEvaluacion : LocalDate.now(FacturacionCorteService.ZONA_PERU);
         return construirConsolidadoCliente(cliente, fechaRef);

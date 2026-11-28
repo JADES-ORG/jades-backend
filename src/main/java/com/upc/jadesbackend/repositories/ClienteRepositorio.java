@@ -11,7 +11,8 @@ public interface ClienteRepositorio  extends JpaRepository<Cliente, Long> {
     List<Cliente> findByIdTienda_IdAndEstadoClienteOrderByIdAsc(Long tienda, String estado);
     Optional<Cliente> findByIdAndIdTienda_Id(Long id, Long tienda);
     boolean existsByIdTienda_IdAndDniClienteAndIdNot(Long tienda, String dni, Long id);
-    Optional<Cliente> findByIdUsuario_Id(Long idUsuario);
+    List<Cliente> findAllByIdUsuario_IdOrderByIdAsc(Long idUsuario);
+    Optional<Cliente> findByIdUsuario_IdAndIdTienda_Id(Long idUsuario, Long idTienda);
 
     List<Cliente> findAllByIdTienda_Id(Long idTienda);
 }

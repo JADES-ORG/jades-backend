@@ -55,8 +55,9 @@ public class MoraController {
     @GetMapping("/mi-cuenta")
     @PreAuthorize("hasRole('CLIENTE')")
     public ResponseMoraClienteDTO consultarMorasMiCuenta(
+            @RequestParam(required = false) Long idTienda,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaEvaluacion,
             @AuthenticationPrincipal UsuarioPrincipal principal) {
-        return servicio.consultarMorasMiCuenta(principal.getId(), fechaEvaluacion);
+        return servicio.consultarMorasMiCuenta(principal.getId(), idTienda, fechaEvaluacion);
     }
 }

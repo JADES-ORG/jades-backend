@@ -171,3 +171,7 @@ Para registrar o actualizar un producto o servicio se requieren cuatro precios p
 ### Administradores de negocio en varias tiendas
 
 `GET /api/v1/tiendas/administradores` (ADMIN_SISTEMA) lista administradores de negocio activos sin credenciales. En `POST /api/v1/tiendas`, enviar exactamente uno de `administrador` (datos de cuenta nueva) o `idAdministradorExistente` (ID de cuenta activa). Al asignar una cuenta existente no se modifica su contraseña ni sus datos. El selector existente `GET /api/v1/tiendas/mis-tiendas` devuelve las tiendas vinculadas.
+
+### Cliente registrado en varias tiendas
+
+El alta reutiliza una cuenta CLIENTE activa si el correo y el DNI corresponden a las fichas existentes; no cambia la contraseña de una cuenta vinculada. `contrasenaTemporal` se exige solamente para una cuenta nueva. Cada tienda tiene una ficha independiente y la baja de esa ficha no desactiva la cuenta compartida. El correo de acceso no es editable; tampoco el DNI de una ficha vinculada. `GET /api/v1/portal/mis-tiendas` devuelve las fichas y sus deudas por establecimiento y moneda, incluidas las fichas sin pendientes. Las rutas `GET /api/v1/portal/mi-cuenta`, `/api/v1/corte/mi-cuenta` y `/api/v1/mora/mi-cuenta` aceptan `idTienda`. Si el cliente tiene varias fichas, ese parámetro es obligatorio. Solo puede consultar las fichas de su propia cuenta. No se consolidan deudas de monedas distintas.

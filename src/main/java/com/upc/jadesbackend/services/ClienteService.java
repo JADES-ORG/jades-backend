@@ -25,33 +25,38 @@ public class ClienteService {
         e.setIdTienda(acceso.exigir(tienda, usuario));
         e.setEstadoCliente("ACTIVO");
         String correo = dto.correoCliente().trim().toLowerCase(Locale.ROOT);
-        aplicar(tienda, e, new RequestClienteDTO(dto.nombreCliente(), dto.dniCliente(), dto.telefonoCliente(), correo));
-        if (usuarios.existsByCorreoUsuarioIgnoreCase(correo))
-            throw new NegocioException(HttpStatus.CONFLICT, "El correo de acceso ya está registrado");
-        Usuario cuenta = new Usuario();
-        cuenta.setRol("CLIENTE");
-        cuenta.setActivo(true);
-        cuenta.setNombreUsuario(dto.nombreCliente());
-        cuenta.setCorreoUsuario(correo);
-        cuenta.setTelefonoUsuario(dto.telefonoCliente());
-        cuenta.setPasswordHash(encoder.encode(dto.contrasenaTemporal()));
-        e.setIdUsuario(usuarios.save(cuenta));
+        aplicar(tienda, e, new RequestClienteDTO(dto.nombreCliente(), dto.dniCliente(), dto.telefonoCliente()));
+        e.setCorreoCliente(correo);
+        Usuario cuenta = usuarios.findByCorreoUsuarioIgnoreCase(correo).orElse(null);
+        if (cuenta != null) {
+            if (!"CLIENTE".equals(cuenta.getRol()) || !Boolean.TRUE.equals(cuenta.getActivo()))
+                throw new NegocioException(HttpStatus.CONFLICT, "No es posible vincular esa cuenta");
+            List<Cliente> fichas = repositorio.findAllByIdUsuario_IdOrderByIdAsc(cuenta.getId());
+            if (fichas.isEmpty() || fichas.stream().anyMatch(f -> !dto.dniCliente().equals(f.getDniCliente())))
+                throw new NegocioException(HttpStatus.CONFLICT, "El correo y DNI no corresponden a la misma cuenta");
+            if (repositorio.findByIdUsuario_IdAndIdTienda_Id(cuenta.getId(), tienda).isPresent())
+                throw new NegocioException(HttpStatus.CONFLICT, "La cuenta ya está vinculada a esta tienda");
+        } else {
+            if (dto.contrasenaTemporal() == null || dto.contrasenaTemporal().isBlank())
+                throw new NegocioException(HttpStatus.BAD_REQUEST, "La contraseña temporal es obligatoria para una cuenta nueva");
+            cuenta = new Usuario();
+            cuenta.setRol("CLIENTE");
+            cuenta.setActivo(true);
+            cuenta.setNombreUsuario(dto.nombreCliente());
+            cuenta.setCorreoUsuario(correo);
+            cuenta.setTelefonoUsuario(dto.telefonoCliente());
+            cuenta.setPasswordHash(encoder.encode(dto.contrasenaTemporal()));
+            cuenta = usuarios.save(cuenta);
+        }
+        e.setIdUsuario(cuenta);
         return ResponseClienteDTO.de(repositorio.save(e));
     }
     public ResponseClienteDTO actualizar(Long tienda, Long id, RequestClienteDTO dto, UsuarioPrincipal usuario) {
         acceso.exigir(tienda, usuario);
         Cliente e = buscar(tienda, id);
+        if (e.getIdUsuario() != null && !e.getDniCliente().equals(dto.dniCliente()))
+            throw new NegocioException(HttpStatus.CONFLICT, "No se puede modificar el DNI de una cuenta vinculada");
         aplicar(tienda, e, dto);
-        Usuario cuenta = e.getIdUsuario();
-        if (cuenta != null) {
-            if (dto.correoCliente() == null || dto.correoCliente().isBlank() || dto.correoCliente().length() > 150)
-                throw new NegocioException(HttpStatus.BAD_REQUEST, "Se requiere un correo válido para la cuenta vinculada");
-            String correo = dto.correoCliente().trim().toLowerCase(Locale.ROOT);
-            if (usuarios.findByCorreoUsuarioIgnoreCase(correo).filter(u -> !u.getId().equals(cuenta.getId())).isPresent())
-                throw new NegocioException(HttpStatus.CONFLICT, "El correo de acceso ya está registrado");
-            cuenta.setCorreoUsuario(correo);
-            e.setCorreoCliente(correo);
-        }
         return ResponseClienteDTO.de(repositorio.save(e));
     }
     public ResponseClienteDTO desactivar(Long tienda, Long id, UsuarioPrincipal usuario) {
@@ -77,6 +82,20 @@ public class ClienteService {
         acceso.exigirParaConsulta(tienda, usuario);
         return ResponseClienteDTO.de(buscar(tienda, id));
     }
+    @Transactional(readOnly = true)
+    public Cliente consultarFichaPropia(Long idUsuario, Long idTienda) {
+        if (idTienda != null) {
+            return repositorio.findByIdUsuario_IdAndIdTienda_Id(idUsuario, idTienda)
+                    .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "No tienes una cuenta en esta tienda"));
+        }
+        List<Cliente> fichas = repositorio.findAllByIdUsuario_IdOrderByIdAsc(idUsuario);
+        if (fichas.isEmpty())
+            throw new NegocioException(HttpStatus.NOT_FOUND, "No existe un cliente vinculado al usuario autenticado");
+        if (fichas.size() > 1)
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "Selecciona la tienda que deseas consultar");
+        return fichas.get(0);
+    }
+
     private Cliente buscar(Long tienda, Long id) {
         return repositorio.findByIdAndIdTienda_Id(id, tienda).orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "Cliente no encontrado en esta tienda"));
     }
@@ -86,6 +105,6 @@ public class ClienteService {
         e.setNombreCliente(dto.nombreCliente());
         e.setDniCliente(dto.dniCliente());
         e.setTelefonoCliente(dto.telefonoCliente());
-        e.setCorreoCliente(dto.correoCliente());
+
     }
 }

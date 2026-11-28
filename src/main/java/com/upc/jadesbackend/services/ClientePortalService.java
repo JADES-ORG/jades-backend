@@ -2,6 +2,7 @@ package com.upc.jadesbackend.services;
 
 import com.upc.jadesbackend.dtos.ResponseCuentaCorrienteDTO;
 import com.upc.jadesbackend.dtos.ResponseVentaDTO;
+import com.upc.jadesbackend.dtos.ResponseTiendaClienteDTO;
 import com.upc.jadesbackend.entities.*;
         import com.upc.jadesbackend.exceptions.NegocioException;
 import com.upc.jadesbackend.repositories.*;
@@ -27,13 +28,16 @@ public class ClientePortalService {
     private final CuotaRepositorio cuotas;
     private final PagoRepositorio pagos;
     private final MoraService moraService;
+    private final ClienteService fichas;
+    private final CondicionCrediticiaRepositorio condiciones;
 
     public ClientePortalService(
             ClienteRepositorio clientes,
             VentaRepositorio ventas,
             CreditoRepositorio creditos,
             CuotaRepositorio cuotas,
-            PagoRepositorio pagos, MoraService moraService) {
+            PagoRepositorio pagos, MoraService moraService, ClienteService fichas,
+            CondicionCrediticiaRepositorio condiciones) {
 
         this.clientes = clientes;
         this.ventas = ventas;
@@ -41,18 +45,27 @@ public class ClientePortalService {
         this.cuotas = cuotas;
         this.pagos = pagos;
         this.moraService = moraService;
+        this.fichas = fichas;
+        this.condiciones = condiciones;
     }
 
     @Transactional(readOnly = true)
-    public ResponseCuentaCorrienteDTO consultarMiCuenta(Long idUsuario) {
+    public ResponseCuentaCorrienteDTO consultarMiCuenta(Long idUsuario, Long idTienda) {
+        return construirCuenta(fichas.consultarFichaPropia(idUsuario, idTienda));
+    }
 
-        Cliente cliente = clientes.findByIdUsuario_Id(idUsuario)
-                .orElseThrow(() -> new NegocioException(
-                        HttpStatus.NOT_FOUND,
-                        "No existe un cliente vinculado al usuario autenticado"
-                ));
-
-        return construirCuenta(cliente);
+    @Transactional(readOnly = true)
+    public List<ResponseTiendaClienteDTO> listarMisTiendas(Long idUsuario) {
+        return clientes.findAllByIdUsuario_IdOrderByIdAsc(idUsuario).stream().map(cliente -> {
+            var cuenta = construirCuenta(cliente);
+            var resumen = cuenta.resumen();
+            String moneda = condiciones.findByIdCliente_Id(cliente.getId())
+                    .map(CondicionCredito::getMonedaCredito).orElse(null);
+            return new ResponseTiendaClienteDTO(cliente.getIdTienda().getId(), cliente.getId(),
+                    cliente.getIdTienda().getNombreTienda(), cliente.getIdTienda().getEstadoTienda(),
+                    cliente.getEstadoCliente(), moneda, resumen.capitalPendiente(),
+                    resumen.totalPendienteRegistrado(), resumen.cuotasPendientes(), resumen.cuotasVencidas());
+        }).toList();
     }
 
     // NOTITA: Podria evaluarse reestructurar este metodo para mejor legibilidad y que sea menos complejo

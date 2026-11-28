@@ -49,6 +49,7 @@ public class FacturacionCorteService {
     private final PagoRepositorio pagos;
     private final MoraService moraService;
     private final UsuarioTiendaRepositorio accesos;
+    private final ClienteService fichas;
 
     public FacturacionCorteService(ClienteRepositorio clientes,
                                    CondicionCreditoRepositorio condiciones,
@@ -57,7 +58,7 @@ public class FacturacionCorteService {
                                    CuotaRepositorio cuotas,
                                    PagoRepositorio pagos,
                                    MoraService moraService,
-                                   UsuarioTiendaRepositorio accesos) {
+                                   UsuarioTiendaRepositorio accesos, ClienteService fichas) {
         this.clientes = clientes;
         this.condiciones = condiciones;
         this.ventas = ventas;
@@ -66,6 +67,7 @@ public class FacturacionCorteService {
         this.pagos = pagos;
         this.moraService = moraService;
         this.accesos = accesos;
+        this.fichas = fichas;
     }
 
     /**
@@ -126,11 +128,9 @@ public class FacturacionCorteService {
     public ResponseListadoCorteDTO consultarMiListadoCorte(
             YearMonth ciclo,
             LocalDate fechaEvaluacion,
-            Long idUsuarioCliente) {
+            Long idUsuarioCliente, Long idTienda) {
 
-        Cliente cliente = clientes.findByIdUsuario_Id(idUsuarioCliente)
-                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND,
-                        "No existe un cliente vinculado al usuario autenticado"));
+        Cliente cliente = fichas.consultarFichaPropia(idUsuarioCliente, idTienda);
 
         YearMonth cicloFacturacion = ciclo != null ? ciclo : YearMonth.now(ZONA_PERU);
         LocalDate fechaRef = fechaEvaluacion != null ? fechaEvaluacion : LocalDate.now(ZONA_PERU);
