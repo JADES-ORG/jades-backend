@@ -23,6 +23,6 @@ public class AutenticacionService {
         var autenticacion = manager.authenticate(new UsernamePasswordAuthenticationToken(
                 solicitud.correo(), solicitud.contrasena()));
         UsuarioPrincipal usuario = (UsuarioPrincipal) autenticacion.getPrincipal();
-        return new ResponseLoginDTO(jwt.generar(usuario), usuario.getId(), usuario.getUsername(), usuario.getRol());
+        return new ResponseLoginDTO(jwt.generar(usuario), usuario.getId(), usuario.getUsername(), usuario.getRol(), usuario.getNombre());
     }
 }

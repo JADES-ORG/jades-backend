@@ -11,6 +11,7 @@ import java.util.List;
 public class UsuarioPrincipal implements UserDetails {
     private final Long id;
     private final String correo;
+    private final String nombre;
     private final String passwordHash;
     private final String rol;
     private final boolean activo;
@@ -18,6 +19,7 @@ public class UsuarioPrincipal implements UserDetails {
     public UsuarioPrincipal(Usuario usuario) {
         this.id = usuario.getId();
         this.correo = usuario.getCorreoUsuario();
+        this.nombre = usuario.getNombreUsuario();
         this.passwordHash = usuario.getPasswordHash();
         this.rol = usuario.getRol();
         this.activo = Boolean.TRUE.equals(usuario.getActivo());
@@ -25,6 +27,7 @@ public class UsuarioPrincipal implements UserDetails {
 
     public Long getId() { return id; }
     public String getRol() { return rol; }
+    public String getNombre() { return nombre; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
