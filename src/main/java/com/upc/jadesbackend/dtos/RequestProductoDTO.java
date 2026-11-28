@@ -8,6 +8,8 @@ public record RequestProductoDTO(
         @Size(max=500) String descripcion,
         @NotNull @DecimalMin("0.01") @Digits(integer=16, fraction=2) BigDecimal precioContado,
         @NotNull @DecimalMin("0.01") @Digits(integer=16, fraction=2) BigDecimal precioCredito,
+        @NotNull @DecimalMin("0.01") @Digits(integer=16, fraction=2) BigDecimal precioContadoUsd,
+        @NotNull @DecimalMin("0.01") @Digits(integer=16, fraction=2) BigDecimal precioCreditoUsd,
         @NotBlank @Pattern(regexp="PRODUCTO|SERVICIO") String tipoProducto,
         @Size(max=150) String proveedor,
         @Size(max=100) String marca,

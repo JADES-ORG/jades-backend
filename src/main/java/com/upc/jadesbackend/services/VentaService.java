@@ -114,7 +114,7 @@ public class VentaService {
         venta.setFechaPagoAsignada(resultado.fechaPago());
         venta.setClaveIdempotencia(clave);
 
-        BigDecimal total = calcularDetalles(venta, tienda, dto);
+        BigDecimal total = calcularDetalles(venta, tienda, dto, condicion.getMonedaCredito());
 
         evaluacion.validarLimite(cliente.getId(), condicion, total);   // HU09 - criterio 1
 
@@ -174,7 +174,7 @@ public class VentaService {
 
         // Entidad transitoria para compartir la lógica de líneas; nunca se guarda.
         Venta borrador = new Venta();
-        BigDecimal capital = calcularDetalles(borrador, tienda, dto);
+        BigDecimal capital = calcularDetalles(borrador, tienda, dto, condicion.getMonedaCredito());
         if (capital.signum() <= 0)
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El capital de la venta debe ser mayor a cero");
         BigDecimal utilizado = evaluacion.creditoUtilizado(cliente.getId());
@@ -229,7 +229,7 @@ public class VentaService {
     }
 
     /** Calcula los mismos precios y subtotales para venta y simulación. No persiste. */
-    private BigDecimal calcularDetalles(Venta venta, Long tienda, RequestVentaDTO dto) {
+    private BigDecimal calcularDetalles(Venta venta, Long tienda, RequestVentaDTO dto, String moneda) {
         BigDecimal total = BigDecimal.ZERO;
         Set<Long> vistos = new HashSet<>();
         for (RequestVentaDTO.Detalle linea : dto.detalles()) {
@@ -245,8 +245,15 @@ public class VentaService {
             detalle.setNombreProducto(producto.getNombreProducto());
             detalle.setUnidadMedida(producto.getUnidadMedida());
             detalle.setCantidad(linea.cantidad());
-            detalle.setPrecioUnitario(producto.getPrecioCredito());   // precio a crédito vigente al momento de la venta
-            detalle.setSubtotal(producto.getPrecioCredito().multiply(linea.cantidad()).setScale(2, RoundingMode.HALF_UP));
+            BigDecimal precio = switch (moneda) {
+                case "PEN" -> producto.getPrecioCredito();
+                case "USD" -> producto.getPrecioCreditoUsd();
+                default -> throw new NegocioException(HttpStatus.BAD_REQUEST, "Moneda de crédito no admitida");
+            };
+            if (precio == null || precio.signum() <= 0)
+                throw new NegocioException(HttpStatus.CONFLICT, "El producto no tiene un precio a crédito válido en " + moneda);
+            detalle.setPrecioUnitario(precio);
+            detalle.setSubtotal(precio.multiply(linea.cantidad()).setScale(2, RoundingMode.HALF_UP));
             venta.agregarDetalle(detalle);
             if (detalle.getSubtotal().signum() <= 0)
                 throw new NegocioException(HttpStatus.BAD_REQUEST, "El subtotal de cada producto debe ser al menos 0.01");

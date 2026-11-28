@@ -163,3 +163,7 @@ Las pruebas funcionales y financieras se realizarán manualmente mediante Swagge
 - Endpoint público: `POST /api/v1/autenticacion/iniciar-sesion` (devuelve el token JWT).
 - Swagger es público; el resto de endpoints requiere `Authorization: Bearer <token>`.
 - Roles: `ADMIN_NEGOCIO`, `CLIENTE` (y administrador del sistema).
+
+### Precios del catálogo en ambas monedas
+
+Para registrar o actualizar un producto o servicio se requieren cuatro precios positivos: `precioContado` y `precioCredito` (PEN), `precioContadoUsd` y `precioCreditoUsd` (USD). La simulación y el registro de venta seleccionan el precio a crédito en la moneda pactada con el cliente; no se aplica tipo de cambio. Los productos antiguos conservan sus campos de precio originales como PEN y deben completar manualmente sus precios USD. No se inventan importes USD ni se cambian los precios históricos de las ventas.

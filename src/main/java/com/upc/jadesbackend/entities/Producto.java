@@ -41,6 +41,12 @@ public class Producto {
     @Column(name = "precio_credito", nullable = false, precision = 18, scale = 2)
     private BigDecimal precioCredito;
 
+    @Column(name = "precio_contado_usd", precision = 18, scale = 2)
+    private BigDecimal precioContadoUsd;
+
+    @Column(name = "precio_credito_usd", precision = 18, scale = 2)
+    private BigDecimal precioCreditoUsd;
+
     @Size(max = 10)
     @NotNull
     @Column(name = "tipo_producto", nullable = false, length = 10)

@@ -96,6 +96,8 @@ public class ProductoService {
         e.setDescripcion(dto.descripcion());
         e.setPrecioContado(dto.precioContado());
         e.setPrecioCredito(dto.precioCredito());
+        e.setPrecioContadoUsd(dto.precioContadoUsd());
+        e.setPrecioCreditoUsd(dto.precioCreditoUsd());
         e.setTipoProducto(dto.tipoProducto());
         e.setProveedor(dto.proveedor());
         e.setMarca(dto.marca());
